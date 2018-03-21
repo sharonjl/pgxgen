@@ -1,8 +1,10 @@
 package stringcase
 
+
 import "github.com/reiver/go-whitespace"
 import "strings"
 import "unicode"
+
 
 // ToTitleCase converts the string to 'Title Case' and returns it.
 func ToTitleCase(s string) string {
@@ -15,23 +17,23 @@ func ToTitleCase(s string) string {
 	//
 	// Specifically, assumes it iterates from beginning to end.
 	//
-	prev := ' '
-	result := strings.Map(
-		func(r rune) rune {
+		prev := ' '
+		result := strings.Map(
+			func(r rune) rune {
 
-			if whitespace.IsWhitespace(prev) || '_' == prev || '-' == prev {
-				prev = r
+				if whitespace.IsWhitespace(prev) || '_' == prev || '-' == prev {
+					prev = r
 
-				return unicode.ToTitle(r)
-			} else {
-				prev = r
+					return unicode.ToTitle(r)
+				} else {
+					prev = r
 
-				return unicode.ToLower(r)
+					return unicode.ToLower(r)
 
-			}
-		},
-		s)
+				}
+			},
+			s)
 
 	// Return
-	return result
+		return result
 }

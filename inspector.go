@@ -25,9 +25,9 @@ import (
 )
 
 var pgToPgxTypeMap = map[string]string{
-	"text":        "pgType.Text",
-	"varchar":     "pgType.Text",
-	"bytea":       "pgType.Bytea",
+	"text":        "pgtype.Text",
+	"varchar":     "pgtype.Text",
+	"bytea":       "pgtype.Bytea",
 	"int2":        "pgtype.Int2",
 	"int4":        "pgtype.Int4",
 	"int8":        "pgtype.Int8",
@@ -66,7 +66,7 @@ var pgToGoTemplate = map[string]func(v, p string) string{
 	"int4":        func(v, p string) string { return fmt.Sprintf("%s.%s.Int", v, p) },
 	"int8":        func(v, p string) string { return fmt.Sprintf("%s.%s.Int", v, p) },
 	"bool":        func(v, p string) string { return fmt.Sprintf("%s.%s.Bool", v, p) },
-	"uuid":        func(v, p string) string { return fmt.Sprintf("uuid.FromBytesOrNil(%s.%s).Bytes[:]", v, p) },
+	"uuid":        func(v, p string) string { return fmt.Sprintf("uuid.FromBytesOrNil(%s.%s.Bytes[:])", v, p) },
 	"_uuid":       func(v, p string) string { return fmt.Sprintf("ToUUIDSlice(%s.%s)", v, p) },
 	"timestamp":   func(v, p string) string { return fmt.Sprintf("%s.%s.Time", v, p) },
 	"timestamptz": func(v, p string) string { return fmt.Sprintf("%s.%s.Time", v, p) },
@@ -75,10 +75,27 @@ var pgToGoTemplate = map[string]func(v, p string) string{
 	"jsonb":       func(v, p string) string { return fmt.Sprintf("%s.%s.Bytes", v, p) },
 }
 
+var goToPgTemplate = map[string]func(v string) string{
+	"text":        func(v string) string { return fmt.Sprintf("pgtype.Text{String: %s, Status: pgtype.Present}", v) },
+	"varchar":     func(v string) string { return fmt.Sprintf("pgtype.Text{String: %s, Status: pgtype.Present}", v) },
+	"bytea":       func(v string) string { return fmt.Sprintf("pgtype.Bytea{Bytes: %s, Status: pgtype.Present}", v) },
+	"int2":        func(v string) string { return fmt.Sprintf("pgtype.Int2{Int: %s, Status: pgtype.Present}", v) },
+	"int4":        func(v string) string { return fmt.Sprintf("pgtype.Int4{Int: %s, Status: pgtype.Present}", v) },
+	"int8":        func(v string) string { return fmt.Sprintf("pgtype.Int8{Int: %s, Status: pgtype.Present}", v) },
+	"bool":        func(v string) string { return fmt.Sprintf("pgtype.Bool{Bool: %s, Status: pgtype.Present}", v) },
+	"uuid":        func(v string) string { return fmt.Sprintf("pgtype.UUID{Bytes: [16]byte(%s), Status: pgtype.Present}", v) },
+	"_uuid":       func(v string) string { return fmt.Sprintf("UUIDArray(%s)", v) },
+	"timestamp":   func(v string) string { return fmt.Sprintf("pgtype.Timestamp{Time: %s, Status: pgtype.Present}", v) },
+	"timestamptz": func(v string) string { return fmt.Sprintf("pgtype.Timestamp{Time: %s, Status: pgtype.Present}", v) },
+	"float4":      func(v string) string { return fmt.Sprintf("pgtype.Float4{Float: %s, Status: pgtype.Present}", v) },
+	"float8":      func(v string) string { return fmt.Sprintf("pgtype.Float8{Float: %s, Status: pgtype.Present}", v) },
+	"jsonb":       func(v string) string { return fmt.Sprintf("pgtype.JSONB{Bytes: %s, Status: pgtype.Present}", v) },
+}
+
 var recognizedAcronyms = map[string]string{
-	"id":  "ID",
-	"ip":  "IP",
-	"url": "URL",
+	"Id":  "ID",
+	"Ip":  "IP",
+	"Url": "URL",
 }
 
 func replaceAcronyms(s string) string {
@@ -92,7 +109,6 @@ func ExportedName(s string) string {
 	return replaceAcronyms(stringcase.ToPascalCase(s))
 }
 
-
 func shortName(s string) string {
 	var r []rune
 	for _, c := range s {
@@ -103,43 +119,123 @@ func shortName(s string) string {
 	return string(r)
 }
 
-
 type Enum struct {
-	EnumName string
-	Values   []string
+	Name   string
+	Values []*EnumValue
 }
 
 func (e *Enum) ExportedName() string {
-	return replaceAcronyms(stringcase.ToPascalCase(e.EnumName))
+	return ExportedName(e.Name)
 }
 
 func (e *Enum) ShortName() string {
-	return shortName(replaceAcronyms(stringcase.ToPascalCase(e.EnumName)))
+	return shortName(replaceAcronyms(stringcase.ToPascalCase(e.Name)))
 }
 
 func (e *Enum) PgxType() string {
-	return pgToPgxTypeMap[e.EnumName]
+	return pgToPgxTypeMap[e.Name]
 }
 
 func (e *Enum) GoType() string {
-	return pgToGoTypeMap[e.EnumName]
+	return pgToGoTypeMap[e.Name]
+}
+
+type EnumValue struct {
+	Value string
+}
+
+func (e *EnumValue) ExportedName() string {
+	return ExportedName(e.Value)
+}
+
+func (e *EnumValue) GoType() string {
+	return pgToGoTypeMap[e.Value]
+}
+
+type Table struct {
+	Catalog     string
+	Schema      string
+	Name        string
+	Columns     []*Column
+	PrimaryKeys []*Column
+	Indexes     map[string][]*Column
+}
+
+func (t *Table) ExportedName() string {
+	return ExportedName(t.Name)
+}
+
+func (t *Table) ShortName() string {
+	return shortName(replaceAcronyms(stringcase.ToPascalCase(t.Name)))
+}
+
+func (t *Table) GoType() string {
+	return t.ExportedName()
+}
+
+type Column struct {
+	Position int
+	Nullable bool
+	Name     string
+	DataType string
+}
+
+func (c *Column) ExportedName() string {
+	return ExportedName(c.Name)
+}
+
+func (c *Column) ShortName() string {
+	return shortName(replaceAcronyms(stringcase.ToPascalCase(c.Name)))
+}
+
+func (c *Column) PgxType() string {
+	return pgToPgxTypeMap[c.DataType]
+}
+
+func (c *Column) GoType() string {
+	return pgToGoTypeMap[c.DataType]
+}
+
+func (c *Column) GoValueTemplate(v string) string {
+	return pgToGoTemplate[c.DataType](v, c.ExportedName())
+}
+
+func (c *Column) PgValueTemplate(v string) string {
+	return goToPgTemplate[c.DataType](v)
 }
 
 type PGData struct {
-	Enums map[string]*Enum
+	Enums  map[string]*Enum
+	Tables map[string]*Table
 }
 
-func Inspect(conn *pgx.Conn) (*PGData, error) {
+func Inspect(conn *pgx.Conn, schema string) (*PGData, error) {
 	data := &PGData{}
 	enums, err := getEnums(conn)
 	if err != nil {
 		return nil, errors.WithMessage(err, "querying enums")
 	}
 	data.Enums = enums
-	for _, en := range enums {
-		pgToPgxTypeMap[en.EnumName] = "PGType" + en.ExportedName()
-		pgToGoTypeMap[en.EnumName] = en.ExportedName()
-		pgToGoTemplate[en.EnumName] = func(v, p string) string { return fmt.Sprintf("%s(%s.%s).String", en.PgxType(), v, p) }
+	for name, en := range enums {
+		pgToPgxTypeMap[name] = "PGType" + en.ExportedName()
+		pgToGoTypeMap[name] = en.ExportedName()
+		pgToGoTemplate[name] = func(t string) func(v, p string) string {
+			return func(v, p string) string { return fmt.Sprintf("%s(%s.%s.String)", t, v, p) }
+		}(en.GoType())
+		goToPgTemplate[name] = func(v string) string { return fmt.Sprintf("%s.PGType()", v) }
+	}
+
+	tables, err := getTables(conn, schema)
+	if err != nil {
+		return nil, errors.WithMessage(err, "querying tables")
+	}
+	data.Tables = tables
+	for _, t := range tables {
+		cols, err := getColumns(conn, schema, t.Name)
+		if err != nil {
+			return nil, errors.WithMessage(err, "")
+		}
+		t.Columns = cols
 	}
 	return data, nil
 }
@@ -221,12 +317,106 @@ func getEnums(conn *pgx.Conn) (map[string]*Enum, error) {
 		en, ok := enMap[name]
 		if !ok {
 			enMap[name] = &Enum{
-				EnumName: name,
-				Values:   []string{},
+				Name:   name,
+				Values: []*EnumValue{},
 			}
 			goto getEnum
 		}
-		en.Values = append(en.Values, value)
+		en.Values = append(en.Values, &EnumValue{Value: value})
 	}
 	return enMap, nil
 }
+
+func getTables(conn *pgx.Conn, schema string) (map[string]*Table, error) {
+	rows, err := conn.Query(queryGetTables, schema)
+	defer rows.Close()
+	if err != nil {
+		return nil, errors.Errorf("unable to get tables: %v", err)
+	}
+
+	tables := make(map[string]*Table)
+	for rows.Next() {
+		var table Table
+		err := rows.Scan(&table.Catalog, &table.Schema, &table.Name)
+		if err != nil {
+			return nil, err
+		}
+		tables[table.Name] = &table
+	}
+	return tables, nil
+}
+
+func getColumns(conn *pgx.Conn, schema, table string) ([]*Column, error) {
+	rows, err := conn.Query(queryGetColumns, schema, table)
+	defer rows.Close()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get columns: %v", err)
+	}
+
+	var cols []*Column
+	for rows.Next() {
+		var col Column
+		var null string
+		err := rows.Scan(&col.Position, &col.Name, &col.DataType, &null)
+		if null == "YES" {
+			col.Nullable = true
+		}
+		if null == "NO" {
+			col.Nullable = false
+		}
+		if err != nil {
+			return nil, err
+		}
+		cols = append(cols, &col)
+	}
+	return cols, nil
+}
+
+//
+// func getTablePrimaryIndex(conn *pgx.Conn, schema string, table string) ([]string, error) {
+// 	rows, err := conn.Query(queryGetTablePrimaryIndex, schema, table)
+// 	defer rows.Close()
+// 	if err != nil {
+// 		return nil, fmt.Errorf("unable to get tables: %v", err)
+// 	}
+//
+// 	var idx []string
+// 	for rows.Next() {
+// 		var colName string
+// 		err := rows.Scan(&colName)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		idx = append(idx, colName)
+// 	}
+// 	return idx, nil
+// }
+//
+// func getTableIndexes(conn *pgx.Conn) ([]*Index, error) {
+// 	rows, err := conn.Query(queryGetTableIndexes)
+// 	defer rows.Close()
+// 	if err != nil {
+// 		return nil, fmt.Errorf("unable to get tables: %v", err)
+// 	}
+//
+// 	var idx []*Index
+// 	for rows.Next() {
+// 		var indexName string
+// 		var tableName string
+// 		var _indexCols pgtype.TextArray
+// 		var indexCols []string
+// 		err := rows.Scan(&indexName, &tableName, &_indexCols)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		_indexCols.AssignTo(&indexCols)
+// 		idx = append(idx, &Index{
+// 			Name:      indexName,
+// 			GoName:    replaceAbbr(stringcase.ToPascalCase(indexName)),
+// 			ShortName: shortName(replaceAbbr(stringcase.ToPascalCase(indexName))),
+// 			Table:     tableName,
+// 			Columns:   indexCols,
+// 		})
+// 	}
+// 	return idx, nil
+// }

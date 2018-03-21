@@ -24,6 +24,10 @@ import (
 )
 
 var cfgFile string
+var dbHost string
+var dbUser string
+var dbPassword string
+var dbName string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -56,7 +60,11 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.pgxgen.yaml)")
-
+	rootCmd.PersistentFlags().StringVar(&dbHost, "dbHost", "localhost", "connection hostname")
+	rootCmd.PersistentFlags().StringVar(&dbUser, "dbUser", "sharon", "connecting user")
+	rootCmd.PersistentFlags().StringVar(&dbPassword, "dbPassword", "", "password for connecting user")
+	rootCmd.PersistentFlags().StringVar(&dbName, "dbName", "", "database to connect to")
+	rootCmd.PersistentFlags().String("out", ".", "output")
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")

@@ -1,8 +1,10 @@
 package stringcase
 
+
 import "github.com/reiver/go-whitespace"
 import "strings"
 import "unicode"
+
 
 // ToCamelCase converts the string to 'camelCase' and returns it.
 func ToCamelCase(s string) string {
@@ -15,28 +17,28 @@ func ToCamelCase(s string) string {
 	//
 	// Specifically, assumes it iterates from beginning to end.
 	//
-	first := true
-	prev := ' '
-	result := strings.Map(
-		func(r rune) rune {
-			if first && (whitespace.IsWhitespace(prev) || '_' == prev || '-' == prev) {
-				first = false
-				prev = r
-				return unicode.ToLower(r)
-			} else if !first && (whitespace.IsWhitespace(prev) || '_' == prev || '-' == prev) {
-				prev = r
-				return unicode.ToTitle(r)
-			} else if whitespace.IsWhitespace(r) || '_' == r || '-' == r {
-				prev = r
-				return -1
-			} else {
-				prev = r
-				return unicode.ToLower(r)
+		first := true
+		prev := ' '
+		result := strings.Map(
+			func(r rune) rune {
+				if first && (whitespace.IsWhitespace(prev) || '_' == prev || '-' == prev) {
+					first = false
+					prev = r
+					return unicode.ToLower(r)
+				} else if !first && (whitespace.IsWhitespace(prev) || '_' == prev || '-' == prev) {
+					prev = r
+					return unicode.ToTitle(r)
+				} else if whitespace.IsWhitespace(r) || '_' == r || '-' == r {
+					prev = r
+					return -1
+				} else {
+					prev = r
+					return unicode.ToLower(r)
 
-			}
-		},
-		s)
+				}
+			},
+			s)
 
 	// Return
-	return result
+		return result
 }

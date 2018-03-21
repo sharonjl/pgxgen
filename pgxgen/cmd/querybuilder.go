@@ -27,14 +27,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var dbHost string
-var dbUser string
-var dbPassword string
-var dbName string
-
-// generateCmd represents the generate command
-var generateCmd = &cobra.Command{
-	Use:   "generate",
+// querybuilderCmd represents the querybuilder command
+var querybuilderCmd = &cobra.Command{
+	Use:   "querybuilder",
 	Short: "A brief description of your command",
 	Long: `A longer description that spans multiple lines and likely contains examples
 and usage of using your command. For example:
@@ -42,29 +37,25 @@ and usage of using your command. For example:
 Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
-	Run: runFn,
+	Run: qbRunFn,
 }
 
 func init() {
-	rootCmd.AddCommand(generateCmd)
+	rootCmd.AddCommand(querybuilderCmd)
 
 	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
-	// generateCmd.PersistentFlags().String("foo", "", "A help for foo")
-	generateCmd.PersistentFlags().StringVar(&dbHost, "dbHost", "localhost", "connection hostname")
-	generateCmd.PersistentFlags().StringVar(&dbUser, "dbUser", "sharon", "connecting user")
-	generateCmd.PersistentFlags().StringVar(&dbPassword, "dbPassword", "", "password for connecting user")
-	generateCmd.PersistentFlags().StringVar(&dbName, "dbName", "", "database to connect to")
-	generateCmd.PersistentFlags().String("out", ".", "output")
+	// querybuilderCmd.PersistentFlags().String("foo", "", "A help for foo")
+	querybuilderCmd.PersistentFlags().String("package", "", "output package name")
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
-	// generateCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// querybuilderCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
-func runFn(cmd *cobra.Command, args []string) {
+func qbRunFn(cmd *cobra.Command, args []string) {
 	// Output directory
 	outf := cmd.Flag("out").Value.String()
 	outdir, err := filepath.Abs(outf)
@@ -74,6 +65,9 @@ func runFn(cmd *cobra.Command, args []string) {
 
 	// Package name
 	pkgName := stringcase.ToCamelCase(filepath.Base(outdir))
+	if cmd.Flag("package").Changed {
+		pkgName = cmd.Flag("package").Value.String()
+	}
 
 	conn, err := pgx.Connect(pgx.ConnConfig{
 		Host:     dbHost,
@@ -85,7 +79,7 @@ func runFn(cmd *cobra.Command, args []string) {
 		panic("couldn't connect to db: " + err.Error())
 	}
 
-	ins, err := pgxgen.Inspect(conn)
+	ins, err := pgxgen.Inspect(conn, "public")
 	if err != nil {
 		panic("error inspecting db: " + err.Error())
 	}
@@ -104,20 +98,43 @@ func runFn(cmd *cobra.Command, args []string) {
 	}
 
 	// Write enums
-	for _, en := range ins.Enums {
-		filename := filepath.Join(outdir, "pgxgen_enum_"+strings.ToLower(en.EnumName)+".go")
+	// for _, en := range ins.Enums {
+	// 	filename := filepath.Join(outdir, "pgxgen_enum_"+strings.ToLower(en.Name)+".go")
+	// 	f, err := os.Create(filename)
+	// 	if err != nil {
+	// 		f.Close()
+	// 		panic("error creating file: " + filename + ": " + err.Error())
+	// 	}
+	// 	err = tmpl.ExecuteTemplate(f, "enum.tpl",
+	// 		struct {
+	// 			PackageName string
+	// 			Enum        *pgxgen.Enum
+	// 		}{
+	// 			PackageName: pkgName,
+	// 			Enum:        en,
+	// 		})
+	// 	if err != nil {
+	// 		f.Close()
+	// 		panic("error executing template: " + filename + ": " + err.Error())
+	// 	}
+	// 	f.Close()
+	// }
+
+	// Write tables
+	for _, en := range ins.Tables {
+		filename := filepath.Join(outdir, "qb_table_"+strings.ToLower(en.Name)+".go")
 		f, err := os.Create(filename)
 		if err != nil {
 			f.Close()
 			panic("error creating file: " + filename + ": " + err.Error())
 		}
-		err = tmpl.ExecuteTemplate(f, "enum.tpl",
+		err = tmpl.ExecuteTemplate(f, "table_qb.tpl",
 			struct {
 				PackageName string
-				Enum        *pgxgen.Enum
+				Table       *pgxgen.Table
 			}{
 				PackageName: pkgName,
-				Enum:        en,
+				Table:       en,
 			})
 		if err != nil {
 			f.Close()
@@ -127,13 +144,13 @@ func runFn(cmd *cobra.Command, args []string) {
 	}
 
 	// Write utils file which contains helpers
-	filename := filepath.Join(outdir, "pgxgen_utils.go")
+	filename := filepath.Join(outdir, "qb_utils.go")
 	f, err := os.Create(filename)
 	if err != nil {
 		f.Close()
 		panic("error creating file: " + filename + ": " + err.Error())
 	}
-	err = tmpl.ExecuteTemplate(f, "utils.tpl",
+	err = tmpl.ExecuteTemplate(f, "utils_qb.tpl",
 		struct {
 			PackageName string
 		}{
