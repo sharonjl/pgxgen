@@ -30,3 +30,9 @@ func({{$.Table.ShortName}} *{{$.Table.GoType}}) Set{{.ExportedName}}(v {{.GoType
     return {{$.Table.ShortName}}
 }
 {{end}}
+
+var All{{.Table.ExportedName}}Fields = []string{
+{{- range .Table.Columns}}
+    "{{.Name}}",
+{{- end}}
+}
