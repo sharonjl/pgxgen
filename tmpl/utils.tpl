@@ -7,11 +7,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"errors"
 
     pgx "github.com/jackc/pgx"
     pgtype "github.com/jackc/pgx/pgtype"
     uuid "github.com/satori/go.uuid"
 )
+
+var ErrNotFound = errors.New("model: not found")
 
 func Text(s string) pgtype.Text {
 	m := pgtype.Text{}

@@ -2,12 +2,6 @@
 
 
 [[projects]]
-  name = "github.com/davecgh/go-spew"
-  packages = ["spew"]
-  revision = "346938d642f2ec3594ed81d874461961cd0faa76"
-  version = "v1.1.0"
-
-[[projects]]
   name = "github.com/fsnotify/fsnotify"
   packages = ["."]
   revision = "c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9"
@@ -94,8 +88,7 @@
 [[projects]]
   name = "github.com/satori/go.uuid"
   packages = ["."]
-  revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
-  version = "v1.2.0"
+  revision = "36e9d2ebbde5e3f13ab2e25625fd453271d6522e"
 
 [[projects]]
   name = "github.com/spf13/afero"
@@ -164,6 +157,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e702063d864e582322aa03ed7bf4efcce5197620a8a86f1e75efe7b7d5dd9224"
+  inputs-digest = "9c4668b192b1a3eba8118451ee50f5642a375b330ff66aa42ef9b99cb0845bca"
   solver-name = "gps-cdcl"
   solver-version = 1

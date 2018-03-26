@@ -4,7 +4,29 @@ package builder
 import (
 	"bytes"
 	"fmt"
+	"log"
+	"reflect"
+	"strconv"
+	"strings"
+
+	"github.com/sharonjl/pgxgen/gen/model"
 )
+
+// Table map
+var tableMap = map[reflect.Type]Tabler{
+	reflect.TypeOf(&model.StoryView{}):      StoryView,
+	reflect.TypeOf(&model.ReactionView{}):   ReactionView,
+	reflect.TypeOf(&model.StoryBit{}):       StoryBit,
+	reflect.TypeOf(&model.Login{}):          Login,
+	reflect.TypeOf(&model.Device{}):         Device,
+	reflect.TypeOf(&model.Profile{}):        Profile,
+	reflect.TypeOf(&model.Subscription{}):   Subscription,
+	reflect.TypeOf(&model.ReactionBit{}):    ReactionBit,
+	reflect.TypeOf(&model.CounterProfile{}): CounterProfile,
+	reflect.TypeOf(&model.CounterStory{}):   CounterStory,
+	reflect.TypeOf(&model.StoryLike{}):      StoryLike,
+	reflect.TypeOf(&model.Story{}):          Story,
+}
 
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -12,18 +34,18 @@ type Fn func() ([]*InputArg, *SqlBuilder, *ReturnType)
 
 type InputArg struct {
 	name   string
-	typeOf interface{}
+	typeOf reflect.Type
 }
 
-func NewArg(name string, typeof interface{}) *InputArg {
+func NewArg(name string, typeof reflect.Type) *InputArg {
 	return &InputArg{name: name, typeOf: typeof}
 }
 
 type ReturnType struct {
-	typeOf interface{}
+	typeOf reflect.Type
 }
 
-func NewReturnType(typeof interface{}) *ReturnType {
+func NewReturnType(typeof reflect.Type) *ReturnType {
 	return &ReturnType{typeOf: typeof}
 }
 
@@ -47,9 +69,19 @@ func (t *table) WithAlias(s string) *table {
 	return &table{name: t.name, alias: s, gotype: t.gotype}
 }
 
+type Tabler interface {
+	GetTable() *table
+	GetColumns() []*column
+}
+
+type Columner interface {
+	GetColumn() *column
+}
+
 type column struct {
 	table   string
 	name    string
+	expName string
 	alias   string
 	gotype  string
 	pgtype  string
@@ -61,10 +93,100 @@ func (c *column) WithAlias(s string) *column {
 		alias:   s,
 		table:   c.table,
 		name:    c.name,
+		expName: c.expName,
 		gotype:  c.gotype,
 		pgtype:  c.pgtype,
 		pgxtype: c.pgxtype,
 	}
+}
+
+type fieldList struct {
+	fields []*column
+	v      *InputArg
+	tmpl   string
+	delim  string
+}
+
+func DefinedFields(v *InputArg, tmpl string, delim string, fields ...*column) *fieldList {
+	fl := &fieldList{v: v, tmpl: tmpl, delim: delim, fields: fields}
+	if fl.fields == nil || len(fl.fields) == 0 {
+		fl.fields = tableMap[v.typeOf].GetColumns()
+	}
+	return &fieldList{v: v, tmpl: tmpl, delim: delim, fields: fields}
+}
+
+func Print(fn Fn) {
+	args, sql, ret := fn()
+
+	funcArgs := []string{}
+	for _, a := range args {
+		s := a.name + " "
+		_ = a.typeOf.Kind() == reflect.Ptr
+		_ = a.typeOf.Kind() == reflect.Slice
+		s = s + a.typeOf.String()
+		funcArgs = append(funcArgs, s)
+	}
+
+	g := GenIO{Buffer: &bytes.Buffer{}}
+	if len(funcArgs) == 0 {
+		g.P(`func Insert(db pgx.Conn) `, ret.typeOf.String(), ` {`).In()
+	} else {
+		g.P(`func Insert(db pgx.Conn, `, strings.Join(funcArgs, ", "), `) `, ret.typeOf.String(), ` {`).In()
+	}
+
+	var cs []string
+	printString := func() {
+		if len(cs) == 0 {
+			return
+		}
+		g.Line()
+		g.P(`___q = ___q + "`, strings.Join(cs, ""), `"`)
+		cs = []string{}
+	}
+
+	g.P(`___c := 0`)
+	g.P(`___a := []interface{}`)
+	g.P(`___q := ""`)
+	for _, stmt := range sql.stmt {
+		switch v := stmt.(type) {
+		case string:
+			cs = append(cs, v)
+		case Tabler:
+			cs = append(cs, v.GetTable().name)
+		case *column:
+			cs = append(cs, v.table+"."+v.name)
+		case *InputArg:
+			printString()
+			g.Line()
+			g.P(`// Input: `, v.name)
+			g.P(`___c++`)
+			g.P(`___a = append(___a, `, v.name, `)`)
+			g.P(`___q = ___q + "$" + strconv.Itoa(___c)`)
+		case *fieldList:
+			for _, field := range tableMap[v.v.typeOf].GetColumns() {
+				g.P(`if `, v.v.name, `.`, field.expName, ` != pgtype.Undefined {`).In()
+				g.P(`___c++`)
+				g.P(`___a = append(___a, `, v.v.name, `.`, field.expName, `)`)
+				stmpl := strings.Replace(v.tmpl, "{NAME}", field.name, -1)
+				stmpl = strings.Replace(stmpl, "{VALUE}", `"$" + strconv.Itoa(___c)`, -1)
+				g.P(`___q = ___q + `, stmpl)
+				g.Out()
+				g.P(`}`)
+			}
+		default:
+			printString()
+		}
+	}
+	printString()
+	g.Out()
+	g.P(`}`)
+	log.Print(g.String())
+}
+
+func writeArg(c *int, aa *[]interface{}, v interface{}) string {
+	*c++
+	*aa = append(*aa, v)
+	return strconv.Itoa(*c)
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -126,3 +248,5 @@ func (g *GenIO) Out() *GenIO {
 	}
 	return g
 }
+
+// ---------------------------------------------------------------------------------------------------------------------

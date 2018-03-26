@@ -178,6 +178,7 @@ type Column struct {
 	Nullable bool
 	Name     string
 	DataType string
+	IsPK     bool
 }
 
 func (c *Column) ExportedName() string {
@@ -194,6 +195,10 @@ func (c *Column) PgxType() string {
 
 func (c *Column) GoType() string {
 	return pgToGoTypeMap[c.DataType]
+}
+
+func (c *Column) GoVar() string {
+	return replaceAcronyms(stringcase.ToCamelCase(c.Name))
 }
 
 func (c *Column) GoValueTemplate(v string) string {
@@ -236,6 +241,20 @@ func Inspect(conn *pgx.Conn, schema string) (*PGData, error) {
 			return nil, errors.WithMessage(err, "")
 		}
 		t.Columns = cols
+
+		pkColName, err := getTablePrimaryIndex(conn, schema, t.Name)
+		if err != nil {
+			return nil, errors.WithMessage(err, "")
+		}
+		t.PrimaryKeys = []*Column{}
+		for _, c := range t.Columns {
+			for _, pkCol := range pkColName {
+				if c.Name == pkCol {
+					c.IsPK = true
+					t.PrimaryKeys = append(t.PrimaryKeys, c)
+				}
+			}
+		}
 	}
 	return data, nil
 }
@@ -373,24 +392,25 @@ func getColumns(conn *pgx.Conn, schema, table string) ([]*Column, error) {
 }
 
 //
-// func getTablePrimaryIndex(conn *pgx.Conn, schema string, table string) ([]string, error) {
-// 	rows, err := conn.Query(queryGetTablePrimaryIndex, schema, table)
-// 	defer rows.Close()
-// 	if err != nil {
-// 		return nil, fmt.Errorf("unable to get tables: %v", err)
-// 	}
-//
-// 	var idx []string
-// 	for rows.Next() {
-// 		var colName string
-// 		err := rows.Scan(&colName)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		idx = append(idx, colName)
-// 	}
-// 	return idx, nil
-// }
+func getTablePrimaryIndex(conn *pgx.Conn, schema string, table string) ([]string, error) {
+	rows, err := conn.Query(queryGetTablePrimaryIndex, schema, table)
+	defer rows.Close()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get tables: %v", err)
+	}
+
+	var idx []string
+	for rows.Next() {
+		var colName string
+		err := rows.Scan(&colName)
+		if err != nil {
+			return nil, err
+		}
+		idx = append(idx, colName)
+	}
+	return idx, nil
+}
+
 //
 // func getTableIndexes(conn *pgx.Conn) ([]*Index, error) {
 // 	rows, err := conn.Query(queryGetTableIndexes)

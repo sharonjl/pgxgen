@@ -17,8 +17,15 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"text/template"
 
-	homedir "github.com/mitchellh/go-homedir"
+	"github.com/jackc/pgx"
+	"github.com/mitchellh/go-homedir"
+	"github.com/sharonjl/pgxgen"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -41,7 +48,16 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
-	//	Run: func(cmd *cobra.Command, args []string) { },
+	Run: func(cmd *cobra.Command, args []string) {
+		outf := cmd.Flag("out").Value.String()
+		gendir, err := filepath.Abs(outf)
+		if err != nil {
+			panic("output directory: " + outf + ": " + err.Error())
+		}
+
+		modelRunFn(gendir, cmd, args)
+		//qbRunFn(gendir, cmd, args)
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -93,5 +109,251 @@ func initConfig() {
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
+	}
+}
+
+
+func qbRunFn(gendir string, cmd *cobra.Command, args []string) {
+	// Output directory
+	outf := filepath.Join(gendir, "builder")
+	outdir, err := filepath.Abs(outf)
+	if err != nil {
+		panic("output directory: " + outf + ": " + err.Error())
+	}
+
+	err = os.MkdirAll(outf, os.ModePerm)
+	if err != nil {
+		panic("error creating output directory: " + outf + ": " + err.Error())
+	}
+
+	// Package name
+	pkgName := "builder"
+
+	conn, err := pgx.Connect(pgx.ConnConfig{
+		Host:     dbHost,
+		User:     dbUser,
+		Password: dbPassword,
+		Database: dbName,
+	})
+	if err != nil {
+		panic("couldn't connect to db: " + err.Error())
+	}
+
+	ins, err := pgxgen.Inspect(conn, "public")
+	if err != nil {
+		panic("error inspecting db: " + err.Error())
+	}
+
+	tmpl, err := template.New("a").Funcs(template.FuncMap{
+		"exported": func(s ...string) string {
+			var r string
+			for k := range s {
+				r += pgxgen.ExportedName(s[k])
+			}
+			return r
+		},
+		"inc": func(i int) string {
+			return strconv.Itoa(i + 1)
+		},
+	}).ParseGlob("./tmpl/*.tpl")
+	if err != nil {
+		panic("error reading templates: " + err.Error())
+	}
+
+	// Write enums
+	// for _, en := range ins.Enums {
+	// 	filename := filepath.Join(outdir, "pgxgen_enum_"+strings.ToLower(en.Name)+".go")
+	// 	f, err := os.Create(filename)
+	// 	if err != nil {
+	// 		f.Close()
+	// 		panic("error creating file: " + filename + ": " + err.Error())
+	// 	}
+	// 	err = tmpl.ExecuteTemplate(f, "enum.tpl",
+	// 		struct {
+	// 			PackageName string
+	// 			Enum        *pgxgen.Enum
+	// 		}{
+	// 			PackageName: pkgName,
+	// 			Enum:        en,
+	// 		})
+	// 	if err != nil {
+	// 		f.Close()
+	// 		panic("error executing template: " + filename + ": " + err.Error())
+	// 	}
+	// 	f.Close()
+	// }
+
+	// Write tables
+	for _, en := range ins.Tables {
+		filename := filepath.Join(outdir, "qb_table_"+strings.ToLower(en.Name)+".go")
+		f, err := os.Create(filename)
+		if err != nil {
+			f.Close()
+			panic("error creating file: " + filename + ": " + err.Error())
+		}
+		err = tmpl.ExecuteTemplate(f, "table_qb.tpl",
+			struct {
+				PackageName string
+				Table       *pgxgen.Table
+			}{
+				PackageName: pkgName,
+				Table:       en,
+			})
+		if err != nil {
+			f.Close()
+			panic("error executing template: " + filename + ": " + err.Error())
+		}
+		f.Close()
+	}
+
+	// Write utils file which contains helpers
+	filename := filepath.Join(outdir, "qb_utils.go")
+	f, err := os.Create(filename)
+	if err != nil {
+		f.Close()
+		panic("error creating file: " + filename + ": " + err.Error())
+	}
+	var tables []*pgxgen.Table
+	for _, t := range ins.Tables {
+		tables = append(tables, t)
+	}
+	err = tmpl.ExecuteTemplate(f, "utils_qb.tpl",
+		struct {
+			PackageName string
+			Tables      []*pgxgen.Table
+		}{
+			PackageName: pkgName,
+			Tables:      tables,
+		})
+	if err != nil {
+		f.Close()
+		panic("error executing template: " + filename + ": " + err.Error())
+	}
+	f.Close()
+
+	// Format output
+	out, err := exec.Command("sh", "-c", "goimports -w "+filepath.Join(outdir, "*.go")).Output()
+	if err != nil {
+		panic("error formatting: " + err.Error() + "\n" + string(out))
+	}
+}
+
+
+func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
+	// Output directory
+	outf := filepath.Join(gendir, "model")
+	outdir, err := filepath.Abs(outf)
+	if err != nil {
+		panic("output directory: " + outf + ": " + err.Error())
+	}
+
+	err = os.MkdirAll(outf, os.ModePerm)
+	if err != nil {
+		panic("error creating output directory: " + outf + ": " + err.Error())
+	}
+
+	// Package name
+	pkgName := "model"
+
+	conn, err := pgx.Connect(pgx.ConnConfig{
+		Host:     dbHost,
+		User:     dbUser,
+		Password: dbPassword,
+		Database: dbName,
+	})
+	if err != nil {
+		panic("couldn't connect to db: " + err.Error())
+	}
+
+	ins, err := pgxgen.Inspect(conn, "public")
+	if err != nil {
+		panic("error inspecting db: " + err.Error())
+	}
+
+	tmpl, err := template.New("model").Funcs(template.FuncMap{
+		"exported": func(s ...string) string {
+			var r string
+			for k := range s {
+				r += pgxgen.ExportedName(s[k])
+			}
+			return r
+		},
+		"inc": func(i int) string {
+			return strconv.Itoa(i + 1)
+		},
+	}).ParseGlob("./tmpl/*.tpl")
+	if err != nil {
+		panic("error reading templates: " + err.Error())
+	}
+
+	// Write enums
+	for _, en := range ins.Enums {
+		filename := filepath.Join(outdir, "pgxgen_enum_"+strings.ToLower(en.Name)+".go")
+		f, err := os.Create(filename)
+		if err != nil {
+			f.Close()
+			panic("error creating file: " + filename + ": " + err.Error())
+		}
+		err = tmpl.ExecuteTemplate(f, "enum.tpl",
+			struct {
+				PackageName string
+				Enum        *pgxgen.Enum
+			}{
+				PackageName: pkgName,
+				Enum:        en,
+			})
+		if err != nil {
+			f.Close()
+			panic("error executing template: " + filename + ": " + err.Error())
+		}
+		f.Close()
+	}
+
+	// Write tables
+	for _, en := range ins.Tables {
+		filename := filepath.Join(outdir, "pgxgen_table_"+strings.ToLower(en.Name)+".go")
+		f, err := os.Create(filename)
+		if err != nil {
+			f.Close()
+			panic("error creating file: " + filename + ": " + err.Error())
+		}
+		err = tmpl.ExecuteTemplate(f, "table.tpl",
+			struct {
+				PackageName string
+				Table       *pgxgen.Table
+			}{
+				PackageName: pkgName,
+				Table:       en,
+			})
+		if err != nil {
+			f.Close()
+			panic("error executing template: " + filename + ": " + err.Error())
+		}
+		f.Close()
+	}
+
+	// Write utils file which contains helpers
+	filename := filepath.Join(outdir, "pgxgen_utils.go")
+	f, err := os.Create(filename)
+	if err != nil {
+		f.Close()
+		panic("error creating file: " + filename + ": " + err.Error())
+	}
+	err = tmpl.ExecuteTemplate(f, "utils.tpl",
+		struct {
+			PackageName string
+		}{
+			PackageName: pkgName,
+		})
+	if err != nil {
+		f.Close()
+		panic("error executing template: " + filename + ": " + err.Error())
+	}
+	f.Close()
+
+	// Format output
+	out, err := exec.Command("sh", "-c", "goimports -w "+filepath.Join(outdir, "*.go")).Output()
+	if err != nil {
+		panic("error formatting: " + err.Error() + "\n" + string(out))
 	}
 }

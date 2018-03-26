@@ -21,6 +21,18 @@ type tbl{{.Table.ExportedName}} struct {
 {{end -}}
 }
 
+func ({{.Table.ShortName}} *tbl{{.Table.ExportedName}}) GetTable() *table {
+    return {{.Table.ShortName}}.table
+}
+
+func ({{.Table.ShortName}} *tbl{{.Table.ExportedName}}) GetColumns() []*column {
+    return []*column{
+    {{range .Table.Columns -}}
+        {{$.Table.ShortName}}.{{.ExportedName}},
+    {{end -}}
+    }
+}
+
 // {{$.Table.ExportedName}} exposes table '{{.Table.Name}}' to the query builder.
 var {{$.Table.ExportedName}} = &tbl{{.Table.ExportedName}}{
      table: &table{
@@ -31,6 +43,7 @@ var {{$.Table.ExportedName}} = &tbl{{.Table.ExportedName}}{
      {{.ExportedName}}: &column{    // column: '{{.Name}}'
         table:      "{{$.Table.Name}}",
         name:       "{{.Name}}",
+        expName:    "{{.ExportedName}}",
         gotype:     "{{.GoType}}",
         pgtype:     "{{.DataType}}",
         pgxtype:    "{{.PgxType}}",
