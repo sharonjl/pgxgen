@@ -80,6 +80,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&dbUser, "dbUser", "sharon", "connecting user")
 	rootCmd.PersistentFlags().StringVar(&dbPassword, "dbPassword", "", "password for connecting user")
 	rootCmd.PersistentFlags().StringVar(&dbName, "dbName", "", "database to connect to")
+	rootCmd.PersistentFlags().String("package", "dbmodel", "package name")
 	rootCmd.PersistentFlags().String("out", ".", "output")
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
@@ -241,7 +242,7 @@ func qbRunFn(gendir string, cmd *cobra.Command, args []string) {
 
 func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 	// Output directory
-	outf := filepath.Join(gendir, "model")
+	outf := filepath.Join(gendir, "dbmodel")
 	outdir, err := filepath.Abs(outf)
 	if err != nil {
 		panic("output directory: " + outf + ": " + err.Error())
@@ -253,7 +254,7 @@ func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 	}
 
 	// Package name
-	pkgName := "model"
+	pkgName := cmd.Flag("package").Value.String()
 
 	conn, err := pgx.Connect(pgx.ConnConfig{
 		Host:     dbHost,
