@@ -26,6 +26,7 @@ import (
 	"github.com/jackc/pgx"
 	"github.com/mitchellh/go-homedir"
 	"github.com/sharonjl/pgxgen"
+	"github.com/sharonjl/pgxgen/tmpl"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -271,7 +272,11 @@ func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 		panic("error inspecting db: " + err.Error())
 	}
 
-	tmpl, err := template.New("model").Funcs(template.FuncMap{
+	bEnumTpl, _ :=  tmpl.Asset("../tmpl/enum.tpl")
+	bTableTpl, _ := tmpl.Asset("../tmpl/table.tpl")
+	bUtilsTpl, _ := tmpl.Asset("../tmpl/utils.tpl")
+
+	tpl := template.New("model").Funcs(template.FuncMap{
 		"exported": func(s ...string) string {
 			var r string
 			for k := range s {
@@ -282,10 +287,11 @@ func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 		"inc": func(i int) string {
 			return strconv.Itoa(i + 1)
 		},
-	}).ParseGlob("./tmpl/*.tpl")
-	if err != nil {
-		panic("error reading templates: " + err.Error())
-	}
+	})
+
+	tpl, _ = tpl.New("enum.tpl").Parse(string(bEnumTpl))
+	tpl, _ = tpl.New("table.tpl").Parse(string(bTableTpl))
+	tpl, _ = tpl.New("utils.tpl").Parse(string(bUtilsTpl))
 
 	// Write enums
 	for _, en := range ins.Enums {
@@ -295,7 +301,7 @@ func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 			f.Close()
 			panic("error creating file: " + filename + ": " + err.Error())
 		}
-		err = tmpl.ExecuteTemplate(f, "enum.tpl",
+		err = tpl.ExecuteTemplate(f, "enum.tpl",
 			struct {
 				PackageName string
 				Enum        *pgxgen.Enum
@@ -318,7 +324,7 @@ func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 			f.Close()
 			panic("error creating file: " + filename + ": " + err.Error())
 		}
-		err = tmpl.ExecuteTemplate(f, "table.tpl",
+		err = tpl.ExecuteTemplate(f, "table.tpl",
 			struct {
 				PackageName string
 				Table       *pgxgen.Table
@@ -340,7 +346,7 @@ func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 		f.Close()
 		panic("error creating file: " + filename + ": " + err.Error())
 	}
-	err = tmpl.ExecuteTemplate(f, "utils.tpl",
+	err = tpl.ExecuteTemplate(f, "utils.tpl",
 		struct {
 			PackageName string
 		}{
