@@ -224,7 +224,7 @@ type {{.Table.ExportedName}}Key struct {
 func GetOne{{.Table.ExportedName}}(db *pgx.Conn, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVar}} {{.GoType}}{{end}}) (*{{.Table.ExportedName}}, error) {
 	q := "SELECT " + All{{.Table.ExportedName}}FieldsStr + " FROM {{.Table.Schema}}.{{.Table.Name}} WHERE {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}} AND {{end}}{{.Name}} = ${{inc $k}}{{end}};"
 
-	row := db.QueryRow(q, userID, storyID)
+	row := db.QueryRow(q, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVar}}{{end}})
 	r, err := Scan{{.Table.ExportedName}}(row)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -243,15 +243,14 @@ func GetMany{{.Table.ExportedName}}(db *pgx.Conn, keys []{{.Table.ExportedName}}
 
 	for _, k := range keys {
 		var ov []string
-		// Primary key: user_id
-		c++
-		ov = append(ov, "$"+strconv.Itoa(c))
-		args = append(args, k.UserID)
 
-		// Primary key: story_id
-		c++
-		ov = append(ov, "$"+strconv.Itoa(c))
-		args = append(args, k.StoryID)
+    {{range .Table.PrimaryKeys}}
+        { // Primary Key: {{.Name}}
+                c++
+                ov = append(ov, "$" + strconv.Itoa(c))
+                args = append(args, k.{{.ExportedName}})
+        }
+    {{- end}}
 
 		sqlWherePK = append(sqlWherePK, "("+strings.Join(ov, ", ")+")")
 	}
