@@ -22,6 +22,14 @@ func Text(s string) pgtype.Text {
 	return m
 }
 
+func TextNZ(s string) pgtype.Text {
+	m := pgtype.Text{}
+	if s != "" {
+	    m.Set(s)
+	}
+	return m
+}
+
 func Varchar(s string) pgtype.Varchar {
 	return pgtype.Varchar(Text(s))
 }
