@@ -61,7 +61,7 @@ var pgToGoTypeMap = map[string]string{
 var pgToGoTemplate = map[string]func(v, p string) string{
 	"text":        func(v, p string) string { return fmt.Sprintf("%s.%s.String", v, p) },
 	"varchar":     func(v, p string) string { return fmt.Sprintf("%s.%s.String", v, p) },
-	"bytea":       func(v, p string) string { return fmt.Sprintf("%s.%s.String", v, p) },
+	"bytea":       func(v, p string) string { return fmt.Sprintf("%s.%s.Bytes", v, p) },
 	"int2":        func(v, p string) string { return fmt.Sprintf("%s.%s.Int", v, p) },
 	"int4":        func(v, p string) string { return fmt.Sprintf("%s.%s.Int", v, p) },
 	"int8":        func(v, p string) string { return fmt.Sprintf("%s.%s.Int", v, p) },
@@ -96,7 +96,10 @@ var recognizedAcronyms = map[string]string{
 	"Id":  "ID",
 	"Ip":  "IP",
 	"Url": "URL",
+	"Fb" : "FB",
 }
+
+var customEnumType = []string{}
 
 func replaceAcronyms(s string) string {
 	for k, v := range recognizedAcronyms {
@@ -201,6 +204,15 @@ func (c *Column) GoVar() string {
 	return replaceAcronyms(stringcase.ToCamelCase(c.Name))
 }
 
+func (c *Column) GoVarTemplate() string {
+	for _, t := range customEnumType {
+		if c.DataType == t {
+			return "string(" + replaceAcronyms(stringcase.ToCamelCase(c.Name)) + ")"
+		}
+	}
+	return replaceAcronyms(stringcase.ToCamelCase(c.Name))
+}
+
 func (c *Column) GoValueTemplate(v string) string {
 	return pgToGoTemplate[c.DataType](v, c.ExportedName())
 }
@@ -228,6 +240,7 @@ func Inspect(conn *pgx.Conn, schema string) (*PGData, error) {
 			return func(v, p string) string { return fmt.Sprintf("%s(%s.%s.String)", t, v, p) }
 		}(en.GoType())
 		goToPgTemplate[name] = func(v string) string { return fmt.Sprintf("%s.PGType()", v) }
+		customEnumType = append(customEnumType, name)
 	}
 
 	tables, err := getTables(conn, schema)

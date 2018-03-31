@@ -84,8 +84,8 @@ func Scan{{.Table.ExportedName}}s(rows *pgx.Rows) ([]*{{.Table.ExportedName}}, e
 	return r, err
 }
 
-// CreateOne{{.Table.ExportedName}} create a single row in '{{.Table.Name}}' and return it.
-func CreateOne{{.Table.ExportedName}}(db *pgx.Conn, m *{{.Table.ExportedName}}) (*{{.Table.ExportedName}}, error) {
+// Create{{.Table.ExportedName}} create a single row in '{{.Table.Name}}' and return it.
+func Create{{.Table.ExportedName}}(db *pgx.Conn, m *{{.Table.ExportedName}}) (*{{.Table.ExportedName}}, error) {
 	var f []string
 	var v []string
 	var c int
@@ -113,74 +113,6 @@ func CreateOne{{.Table.ExportedName}}(db *pgx.Conn, m *{{.Table.ExportedName}}) 
 	return r, nil
 }
 
-// CreateMany{{.Table.ExportedName}} creates multiple rows in table '{{.Table.Name}}.'
-func CreateMany{{.Table.ExportedName}}(db *pgx.Conn, m []*{{.Table.ExportedName}}) error {
-	var f []string
-	var v []string
-	var c int
-	var a []interface{}
-
-	if len(m) == 0 {
-		return nil
-	}
-
-	for k, o := range m {
-		var ov []string
-
-    {{range .Table.Columns}}
-        if o.{{.ExportedName}}.Status != pgtype.Undefined {
-            c++
-            if k == 0 {
-                f = append(f, "{{.Name}}")
-            }
-            a = append(a, &o.{{.ExportedName}})
-            ov = append(ov, "$"+strconv.Itoa(c))
-        }
-    {{- end}}
-		v = append(v, "("+strings.Join(ov, ", ")+")")
-	}
-
-	q := "INSERT INTO {{.Table.Schema}}.{{.Table.Name}} (" + strings.Join(f, ", ") + ") VALUES " + strings.Join(v, ", ") + ";"
-	_, err := db.Exec(q, a...)
-	return err
-}
-
-// CreateMany{{.Table.ExportedName}}AndReturn creates multiple rows in table '{{.Table.Name}}' and returns them.
-func CreateMany{{.Table.ExportedName}}AndReturn(db *pgx.Conn, m []*{{.Table.ExportedName}}) ([]*{{.Table.ExportedName}}, error) {
-	var f []string
-	var v []string
-	var c int
-	var a []interface{}
-	var z []*{{.Table.ExportedName}}
-
-	if len(m) == 0 {
-		return z, nil
-	}
-
-	for k, o := range m {
-		var ov []string
-
-    {{range .Table.Columns}}
-        if o.{{.ExportedName}}.Status != pgtype.Undefined {
-            c++
-            if k == 0 {
-                f = append(f, "{{.Name}}")
-            }
-            a = append(a, &o.{{.ExportedName}})
-            ov = append(ov, "$"+strconv.Itoa(c))
-        }
-    {{- end}}
-
-		v = append(v, "("+strings.Join(ov, ", ")+")")
-	}
-
-	q := "INSERT INTO {{.Table.Schema}}.{{.Table.Name}} (" + strings.Join(f, ", ") + ") VALUES " + strings.Join(v, ", ") + " RETURNING " + All{{.Table.ExportedName}}FieldsStr + ";"
-
-	row, _ := db.Query(q, a...)
-	r, err := Scan{{.Table.ExportedName}}s(row)
-	return r, err
-}
-
 // Update{{.Table.ExportedName}} updates a row in '{{.Table.Name}}.'
 func Update{{.Table.ExportedName}}(db *pgx.Conn, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVar}} {{.GoType}}{{end}}, m *{{.Table.ExportedName}}) (*{{.Table.ExportedName}}, error) {
 	var f []string
@@ -192,7 +124,7 @@ func Update{{.Table.ExportedName}}(db *pgx.Conn, {{range $k, $pk := .Table.Prima
         { // Primary Key: {{.Name}}
         		c++
         		pk = append(pk, "{{.Name}} = $"+strconv.Itoa(c))
-        		a = append(a, {{.GoVar}})
+        		a = append(a, {{.GoVarTemplate}})
         }
     {{- end}}
 
@@ -213,53 +145,16 @@ func Update{{.Table.ExportedName}}(db *pgx.Conn, {{range $k, $pk := .Table.Prima
 	return r, err
 }
 
-// {{.Table.ExportedName}}Key is a data structure to store primary key value for table '{{.Table.Name}}.'
-type {{.Table.ExportedName}}Key struct {
-    {{range $k, $pk := .Table.PrimaryKeys}}
-        {{.ExportedName}} {{.GoType}}
-   {{end}}
-}
-
-// GetOne{{.Table.ExportedName}} returns a row from '{{.Table.Name}}.' identified by primary key.
-func GetOne{{.Table.ExportedName}}(db *pgx.Conn, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVar}} {{.GoType}}{{end}}) (*{{.Table.ExportedName}}, error) {
+// Get{{.Table.ExportedName}} returns a row from '{{.Table.Name}}.' identified by primary key.
+func Get{{.Table.ExportedName}}(db *pgx.Conn, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVar}} {{.GoType}}{{end}}) (*{{.Table.ExportedName}}, error) {
 	q := "SELECT " + All{{.Table.ExportedName}}FieldsStr + " FROM {{.Table.Schema}}.{{.Table.Name}} WHERE {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}} AND {{end}}{{.Name}} = ${{inc $k}}{{end}};"
 
-	row := db.QueryRow(q, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVar}}{{end}})
+	row := db.QueryRow(q, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVarTemplate}}{{end}})
 	r, err := Scan{{.Table.ExportedName}}(row)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, ErrNotFound
 		}
-		return nil, err
-	}
-	return r, nil
-}
-
-// GetMany{{.Table.ExportedName}} returns multiple rows from '{{.Table.Name}}.' identified by a list of primary keys.
-func GetMany{{.Table.ExportedName}}(db *pgx.Conn, keys []{{.Table.ExportedName}}Key) ([]*{{.Table.ExportedName}}, error) {
-	var sqlWherePK []string
-	var args []interface{}
-	var c int
-
-	for _, k := range keys {
-		var ov []string
-
-    {{range .Table.PrimaryKeys}}
-        { // Primary Key: {{.Name}}
-                c++
-                ov = append(ov, "$" + strconv.Itoa(c))
-                args = append(args, k.{{.ExportedName}})
-        }
-    {{- end}}
-
-		sqlWherePK = append(sqlWherePK, "("+strings.Join(ov, ", ")+")")
-	}
-
-	q := "SELECT " + All{{.Table.ExportedName}}FieldsStr + " FROM {{.Table.Schema}}.{{.Table.Name}} WHERE (user_id, story_id) IN (" + strings.Join(sqlWherePK, ", ") + ");"
-
-	row, _ := db.Query(q, args...)
-	r, err := Scan{{.Table.ExportedName}}s(row)
-	if err != nil {
 		return nil, err
 	}
 	return r, nil
