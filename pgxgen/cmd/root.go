@@ -242,8 +242,9 @@ func qbRunFn(gendir string, cmd *cobra.Command, args []string) {
 
 
 func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
+
 	// Output directory
-	outf := filepath.Join(gendir, "dbmodel")
+	outf := filepath.Join(gendir, cmd.Flag("package").Value.String())
 	outdir, err := filepath.Abs(outf)
 	if err != nil {
 		panic("output directory: " + outf + ": " + err.Error())
@@ -254,8 +255,8 @@ func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 		panic("error creating output directory: " + outf + ": " + err.Error())
 	}
 
-	// Package name
-	pkgName := cmd.Flag("package").Value.String()
+
+	pkgName := filepath.Base(outf)
 
 	conn, err := pgx.Connect(pgx.ConnConfig{
 		Host:     dbHost,

@@ -85,7 +85,7 @@ func Scan{{.Table.ExportedName}}s(rows *pgx.Rows) ([]*{{.Table.ExportedName}}, e
 }
 
 // Create{{.Table.ExportedName}} create a single row in '{{.Table.Name}}' and return it.
-func Create{{.Table.ExportedName}}(db *pgx.Conn, m *{{.Table.ExportedName}}) (*{{.Table.ExportedName}}, error) {
+func Create{{.Table.ExportedName}}(db Conn, m *{{.Table.ExportedName}}) (*{{.Table.ExportedName}}, error) {
 	var f []string
 	var v []string
 	var c int
@@ -114,7 +114,7 @@ func Create{{.Table.ExportedName}}(db *pgx.Conn, m *{{.Table.ExportedName}}) (*{
 }
 
 // Update{{.Table.ExportedName}} updates a row in '{{.Table.Name}}.'
-func Update{{.Table.ExportedName}}(db *pgx.Conn, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVar}} {{.GoType}}{{end}}, m *{{.Table.ExportedName}}) (*{{.Table.ExportedName}}, error) {
+func Update{{.Table.ExportedName}}(db Conn, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVar}} {{.GoType}}{{end}}, m *{{.Table.ExportedName}}) (*{{.Table.ExportedName}}, error) {
 	var f []string
 	var pk []string
 	var c int
@@ -146,7 +146,7 @@ func Update{{.Table.ExportedName}}(db *pgx.Conn, {{range $k, $pk := .Table.Prima
 }
 
 // Get{{.Table.ExportedName}} returns a row from '{{.Table.Name}}.' identified by primary key.
-func Get{{.Table.ExportedName}}(db *pgx.Conn, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVar}} {{.GoType}}{{end}}) (*{{.Table.ExportedName}}, error) {
+func Get{{.Table.ExportedName}}(db Conn, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVar}} {{.GoType}}{{end}}) (*{{.Table.ExportedName}}, error) {
 	q := "SELECT " + All{{.Table.ExportedName}}FieldsStr + " FROM {{.Table.Schema}}.{{.Table.Name}} WHERE {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}} AND {{end}}{{.Name}} = ${{inc $k}}{{end}};"
 
 	row := db.QueryRow(q, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVarTemplate}}{{end}})
@@ -158,4 +158,14 @@ func Get{{.Table.ExportedName}}(db *pgx.Conn, {{range $k, $pk := .Table.PrimaryK
 		return nil, err
 	}
 	return r, nil
+}
+
+// Delete{{.Table.ExportedName}} returns a row from '{{.Table.Name}}.' identified by primary key.
+func Delete{{.Table.ExportedName}}(db Conn, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVar}} {{.GoType}}{{end}}) error {
+	q := "DELETE FROM {{.Table.Schema}}.{{.Table.Name}} WHERE {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}} AND {{end}}{{.Name}} = ${{inc $k}}{{end}};"
+	_, err := db.Exec(q, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVarTemplate}}{{end}})
+    if err != nil {
+        return err
+    }
+    return nil
 }

@@ -38,6 +38,8 @@ var pgToPgxTypeMap = map[string]string{
 	"timestamptz": "pgtype.Timestamptz",
 	"float4":      "pgtype.Float4",
 	"float8":      "pgtype.Float8",
+	"_float4":     "pgtype.Float4Array",
+	"_float8":     "pgtype.Float8Array",
 	"jsonb":       "pgtype.JSONB",
 }
 
@@ -55,6 +57,8 @@ var pgToGoTypeMap = map[string]string{
 	"timestamptz": "time.Time",
 	"float4":      "float32",
 	"float8":      "float64",
+	"_float4":     "[]float32",
+	"_float8":     "[]float64",
 	"jsonb":       "[]byte",
 }
 
@@ -72,6 +76,8 @@ var pgToGoTemplate = map[string]func(v, p string) string{
 	"timestamptz": func(v, p string) string { return fmt.Sprintf("%s.%s.Time", v, p) },
 	"float4":      func(v, p string) string { return fmt.Sprintf("%s.%s.Float", v, p) },
 	"float8":      func(v, p string) string { return fmt.Sprintf("%s.%s.Float", v, p) },
+	"_float8":     func(v, p string) string { return fmt.Sprintf("ToFloat64Slice(%s.%s)", v, p) },
+	"_float4":     func(v, p string) string { return fmt.Sprintf("ToFloat32Slice(%s.%s)", v, p) },
 	"jsonb":       func(v, p string) string { return fmt.Sprintf("%s.%s.Bytes", v, p) },
 }
 
@@ -89,6 +95,8 @@ var goToPgTemplate = map[string]func(v string) string{
 	"timestamptz": func(v string) string { return fmt.Sprintf("pgtype.Timestamp{Time: %s, Status: pgtype.Present}", v) },
 	"float4":      func(v string) string { return fmt.Sprintf("pgtype.Float4{Float: %s, Status: pgtype.Present}", v) },
 	"float8":      func(v string) string { return fmt.Sprintf("pgtype.Float8{Float: %s, Status: pgtype.Present}", v) },
+	"_float8":     func(v string) string { return fmt.Sprintf("Float8Array(%s)", v) },
+	"_float4":     func(v string) string { return fmt.Sprintf("Float4Array(%s)", v) },
 	"jsonb":       func(v string) string { return fmt.Sprintf("pgtype.JSONB{Bytes: %s, Status: pgtype.Present}", v) },
 }
 
@@ -96,7 +104,7 @@ var recognizedAcronyms = map[string]string{
 	"Id":  "ID",
 	"Ip":  "IP",
 	"Url": "URL",
-	"Fb" : "FB",
+	"Fb":  "FB",
 }
 
 var customEnumType = []string{}

@@ -2,31 +2,31 @@
 package {{.PackageName}}
 
 import (
-    "time"
-    "error"
-	"strconv"
-	"strings"
-	"time"
+	"context"
 	"errors"
+	"time"
 
-    pgx "github.com/jackc/pgx"
-    pgtype "github.com/jackc/pgx/pgtype"
-    uuid "github.com/satori/go.uuid"
+	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/pgtype"
+	"github.com/satori/go.uuid"
 )
 
 var ErrNotFound = errors.New("model: not found")
 
+type Conn interface{
+	Query(sql string, args ...interface{}) (*pgx.Rows, error)
+	QueryEx(ctx context.Context, sql string, options *pgx.QueryExOptions, args ...interface{}) (*pgx.Rows, error)
+	Exec(sql string, arguments ...interface{}) (commandTag pgx.CommandTag, err error)
+	ExecEx(ctx context.Context, sql string, options *pgx.QueryExOptions, arguments ...interface{}) (commandTag pgx.CommandTag, err error)
+	QueryRow(sql string, args ...interface{}) *pgx.Row
+	QueryRowEx(ctx context.Context, sql string, options *pgx.QueryExOptions, args ...interface{}) *pgx.Row
+	Begin() (*pgx.Tx, error)
+	BeginEx(ctx context.Context, txOptions *pgx.TxOptions) (*pgx.Tx, error)
+}
+
 func Text(s string) pgtype.Text {
 	m := pgtype.Text{}
 	m.Set(s)
-	return m
-}
-
-func TextNZ(s string) pgtype.Text {
-	m := pgtype.Text{}
-	if s != "" {
-	    m.Set(s)
-	}
 	return m
 }
 
@@ -40,13 +40,13 @@ func Bytea(b []byte) pgtype.Bytea {
 	return m
 }
 
-func Int2(i int64) pgtype.Int2 {
+func Int2(i int16) pgtype.Int2 {
 	m := pgtype.Int2{}
 	m.Set(i)
 	return m
 }
 
-func Int4(i int64) pgtype.Int4 {
+func Int4(i int32) pgtype.Int4 {
 	m := pgtype.Int4{}
 	m.Set(i)
 	return m
@@ -74,7 +74,7 @@ func Now() pgtype.Timestamp {
 	return Timestamp(time.Now())
 }
 
-func TimestampWithTimezone(t time.Time) pgtype.Timestamptz {
+func TimestampTZ(t time.Time) pgtype.Timestamptz {
 	m := pgtype.Timestamptz{}
 	m.Set(t)
 	return m
@@ -90,6 +90,30 @@ func Float8(f float64) pgtype.Float8 {
 	m := pgtype.Float8{}
 	m.Set(f)
 	return m
+}
+
+func Float4Array(f []float32) pgtype.Float4Array {
+	m := pgtype.Float4Array{}
+	m.Set(f)
+	return m
+}
+
+func Float8Array(f []float64) pgtype.Float8Array {
+	m := pgtype.Float8Array{}
+	m.Set(f)
+	return m
+}
+
+func ToFloat64Slice(aa pgtype.Float8Array) []float64 {
+	var ff []float64
+	aa.AssignTo(&ff)
+	return ff
+}
+
+func ToFloat32Slice(aa pgtype.Float4Array) []float32 {
+	var ff []float32
+	aa.AssignTo(&ff)
+	return ff
 }
 
 func NewUUIDV4() pgtype.UUID {
@@ -124,4 +148,311 @@ func JSONB(b []byte) pgtype.JSONB {
 	m := pgtype.JSONB{}
 	m.Set(b)
 	return m
+}
+
+//------------------------------------------------------------------------------------------
+
+func NullZeroText(s string) pgtype.Text {
+	m := pgtype.Text{}
+	if s != "" {
+		m.Set(s)
+	}
+	return m
+}
+
+func NullZeroVarchar(s string) pgtype.Varchar {
+	return pgtype.Varchar(Text(s))
+}
+
+func NullZeroBytea(b []byte) pgtype.Bytea {
+	m := pgtype.Bytea{}
+	if b != nil && len(b) > 0 {
+		m.Set(b)
+	}
+	return m
+}
+
+func NullZeroInt2(i int16) pgtype.Int2 {
+	m := pgtype.Int2{}
+	if i != 0 {
+		m.Set(i)
+	}
+	return m
+}
+
+func NullZeroInt4(i int32) pgtype.Int4 {
+	m := pgtype.Int4{}
+	if i != 0 {
+		m.Set(i)
+	}
+	return m
+}
+
+func NullZeroInt8(i int64) pgtype.Int8 {
+	m := pgtype.Int8{}
+	if i != 0 {
+		m.Set(i)
+	}
+	return m
+}
+
+func NullZeroBool(b bool) pgtype.Bool {
+	m := pgtype.Bool{}
+	if b {
+		m.Set(b)
+	}
+	return m
+}
+
+func NullZeroTimestamp(t time.Time) pgtype.Timestamp {
+	m := pgtype.Timestamp{}
+	if !t.IsZero() {
+		m.Set(t)
+	}
+	return m
+}
+
+func NullZeroTimestampTZ(t time.Time) pgtype.Timestamptz {
+	m := pgtype.Timestamptz{}
+	if !t.IsZero() {
+		m.Set(t)
+	}
+	return m
+}
+
+func NullZeroFloat4(f float64) pgtype.Float4 {
+	m := pgtype.Float4{}
+	if f != 0 {
+		m.Set(f)
+	}
+	return m
+}
+
+func NullZeroFloat8(f float64) pgtype.Float8 {
+	m := pgtype.Float8{}
+	if f != 0 {
+		m.Set(f)
+	}
+	return m
+}
+
+func NullZeroFloat8Array(ff []float64) pgtype.Float8Array {
+	m := pgtype.Float8Array{}
+	if ff != nil && len(ff) > 0 {
+		m.Set(ff)
+	}
+	return m
+}
+
+
+func NullZeroFloat4Array(ff []float32) pgtype.Float4Array {
+	m := pgtype.Float4Array{}
+	if ff != nil && len(ff) > 0 {
+		m.Set(ff)
+	}
+	return m
+}
+
+func NullZeroUUID(id uuid.UUID) pgtype.UUID {
+	m := pgtype.UUID{}
+	if !uuid.Equal(id, uuid.Nil) {
+		m.Set([16]byte(id))
+	}
+	return m
+}
+
+func NullZeroUUIDArray(ids []uuid.UUID) pgtype.UUIDArray {
+	m := pgtype.UUIDArray{}
+	if ids != nil && len(ids) > 0 {
+		b := make([][16]byte, len(ids))
+		for k, e := range ids {
+			b[k] = [16]byte(e)
+		}
+		m.Set(b)
+	}
+	return m
+}
+
+func NullZeroJSONB(b []byte) pgtype.JSONB {
+	m := pgtype.JSONB{}
+	if b != nil && len(b) > 0 {
+		m.Set(b)
+	}
+	return m
+}
+
+//------------------------------------------------------------------------------------------
+
+func TextFromPtr(s *string) pgtype.Text {
+	m := pgtype.Text{}
+	if s != nil {
+		m.Set(s)
+	}
+	return m
+}
+
+func VarcharFromPtr(s *string) pgtype.Varchar {
+	return pgtype.Varchar(TextFromPtr(s))
+}
+
+func ByteaFromPtr(b *[]byte) pgtype.Bytea {
+	m := pgtype.Bytea{}
+	if b != nil {
+		m.Set(*b)
+	}
+	return m
+}
+
+func Int2FromPtr(i *int16) pgtype.Int2 {
+	m := pgtype.Int2{}
+	if i != nil {
+		m.Set(*i)
+	}
+	return m
+}
+
+func Int4FromPtr(i *int32) pgtype.Int4 {
+	m := pgtype.Int4{}
+	if i != nil {
+		m.Set(*i)
+	}
+	return m
+}
+
+func Int8FromPtr(i *int64) pgtype.Int8 {
+	m := pgtype.Int8{}
+	if i != nil {
+		m.Set(*i)
+	}
+	return m
+}
+
+func BoolFromPtr(b *bool) pgtype.Bool {
+	m := pgtype.Bool{}
+	if b != nil {
+		m.Set(*b)
+	}
+	return m
+}
+
+func TimestampFromPtr(t *time.Time) pgtype.Timestamp {
+	m := pgtype.Timestamp{}
+	if t != nil {
+		m.Set(*t)
+	}
+	return m
+}
+
+func TimestampWithTZFromPtr(t *time.Time) pgtype.Timestamptz {
+	m := pgtype.Timestamptz{}
+	if t != nil {
+		m.Set(*t)
+	}
+	return m
+}
+
+func Float4FromPtr(f *float64) pgtype.Float4 {
+	m := pgtype.Float4{}
+	if f != nil {
+		m.Set(*f)
+	}
+	return m
+}
+
+func Float8FromPtr(f *float64) pgtype.Float8 {
+	m := pgtype.Float8{}
+	if f != nil {
+		m.Set(*f)
+	}
+	return m
+}
+
+func UUIDFromPtr(id *uuid.UUID) pgtype.UUID {
+	m := pgtype.UUID{}
+	if id != nil {
+		m.Set([16]byte(*id))
+	}
+	return m
+}
+
+func JSONBFromPtr(b *[]byte) pgtype.JSONB {
+	m := pgtype.JSONB{}
+	if b != nil {
+		m.Set(*b)
+	}
+	return m
+}
+
+func JSONBFromStringPtr(s *string) pgtype.JSONB {
+	m := pgtype.JSONB{}
+	if s != nil {
+		m.Set(s)
+	}
+	return m
+}
+
+//------------------------------------------------------------------------------------------
+
+func NullText() pgtype.Text {
+	return pgtype.Text{Status: pgtype.Null}
+}
+
+func NullVarchar() pgtype.Varchar {
+	return pgtype.Varchar{Status: pgtype.Null}
+}
+
+func NullBytea() pgtype.Bytea {
+	return pgtype.Bytea{Status: pgtype.Null}
+}
+
+func NullInt2() pgtype.Int2 {
+	return pgtype.Int2{Status: pgtype.Null}
+}
+
+func NullInt4() pgtype.Int4 {
+	return pgtype.Int4{Status: pgtype.Null}
+}
+
+func NullInt8() pgtype.Int8 {
+	return pgtype.Int8{Status: pgtype.Null}
+}
+
+func NullBool() pgtype.Bool {
+	return pgtype.Bool{Status: pgtype.Null}
+}
+
+func NullTimestamp() pgtype.Timestamp {
+	return pgtype.Timestamp{Status: pgtype.Null}
+}
+
+func NullTimestampTZ() pgtype.Timestamptz {
+	return pgtype.Timestamptz{Status: pgtype.Null}
+}
+
+func NullFloat4() pgtype.Float4 {
+	return pgtype.Float4{Status: pgtype.Null}
+}
+
+func NullFloat8() pgtype.Float8 {
+	return pgtype.Float8{Status: pgtype.Null}
+}
+
+func NullFloat4Array() pgtype.Float4Array {
+	return pgtype.Float4Array{Status: pgtype.Null}
+}
+
+func NullFloat8Array() pgtype.Float8Array {
+	return pgtype.Float8Array{Status: pgtype.Null}
+}
+
+func NullUUID() pgtype.UUID {
+	return pgtype.UUID{Status: pgtype.Null}
+}
+
+func NullUUIDArray() pgtype.UUIDArray {
+	return pgtype.UUIDArray{Status: pgtype.Null}
+}
+
+func NullJSONB() pgtype.JSONB {
+	return pgtype.JSONB{Status: pgtype.Null}
 }
