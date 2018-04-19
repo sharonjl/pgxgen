@@ -74,3 +74,4 @@ crashlytics.properties
 crashlytics-build.properties
 fabric.properties
 /tmpl/tmpl.bin.go
+/vendor/
