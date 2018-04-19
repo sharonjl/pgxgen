@@ -25,10 +25,12 @@ import (
 
 	"github.com/jackc/pgx"
 	"github.com/mitchellh/go-homedir"
+	"github.com/pelletier/go-toml"
 	"github.com/sharonjl/pgxgen"
 	"github.com/sharonjl/pgxgen/tmpl"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/tangzero/inflector"
 )
 
 var cfgFile string
@@ -82,6 +84,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&dbPassword, "dbPassword", "", "password for connecting user")
 	rootCmd.PersistentFlags().StringVar(&dbName, "dbName", "", "database to connect to")
 	rootCmd.PersistentFlags().String("package", "dbmodel", "package name")
+	rootCmd.PersistentFlags().String("query", "config.toml", "query definition file")
 	rootCmd.PersistentFlags().String("out", ".", "output")
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
@@ -113,7 +116,6 @@ func initConfig() {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
 	}
 }
-
 
 func qbRunFn(gendir string, cmd *cobra.Command, args []string) {
 	// Output directory
@@ -240,11 +242,11 @@ func qbRunFn(gendir string, cmd *cobra.Command, args []string) {
 	}
 }
 
-
 func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 
 	// Output directory
-	outf := filepath.Join(gendir, cmd.Flag("package").Value.String())
+	// Output directory
+	outf := filepath.Join(gendir)
 	outdir, err := filepath.Abs(outf)
 	if err != nil {
 		panic("output directory: " + outf + ": " + err.Error())
@@ -255,9 +257,34 @@ func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 		panic("error creating output directory: " + outf + ": " + err.Error())
 	}
 
+	modelDir := filepath.Join(outdir, cmd.Flag("package").Value.String())
+	err = os.MkdirAll(modelDir, os.ModePerm)
+	if err != nil {
+		panic("error creating models directory: " + modelDir + ": " + err.Error())
+	}
 
-	pkgName := filepath.Base(outf)
+	storedir := filepath.Join(outdir, "store")
+	postgresImplDir := filepath.Join(storedir, "postgres")
+	err = os.MkdirAll(postgresImplDir, os.ModePerm)
+	if err != nil {
+		panic("error creating output fn directory: " + postgresImplDir + ": " + err.Error())
+	}
 
+	srcPath := []rune(filepath.Join(os.Getenv("GOPATH"), "src"))
+	importPath := string([]rune(outdir)[len(srcPath)+1:])
+
+	modelPkgName := filepath.Base(modelDir)
+
+	// Read QueryDefinition defn
+	queryFile := cmd.Flag("query").Value.String()
+	queryFile, _ = filepath.Abs(queryFile)
+
+	queryDefs, err := toml.LoadFile(queryFile)
+	if err != nil {
+		panic("error could not read query defns: " + queryFile + ": " + err.Error())
+	}
+
+	// Read DB
 	conn, err := pgx.Connect(pgx.ConnConfig{
 		Host:     dbHost,
 		User:     dbUser,
@@ -268,14 +295,18 @@ func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 		panic("couldn't connect to db: " + err.Error())
 	}
 
-	ins, err := pgxgen.Inspect(conn, "public")
+	pgdata, err := pgxgen.Inspect(conn, "public")
 	if err != nil {
 		panic("error inspecting db: " + err.Error())
 	}
 
-	bEnumTpl, _ :=  tmpl.Asset("../tmpl/enum.tpl")
-	bTableTpl, _ := tmpl.Asset("../tmpl/table.tpl")
-	bUtilsTpl, _ := tmpl.Asset("../tmpl/utils.tpl")
+	// Read query config
+	queryDoc := pgxgen.QueryDefinitions{}
+	err = queryDefs.Unmarshal(&queryDoc)
+	if err != nil {
+		panic("error unmarshalling queries: " + err.Error())
+	}
+	queries := pgxgen.ProcessQueryDefinitions(queryDoc, *pgdata)
 
 	tpl := template.New("model").Funcs(template.FuncMap{
 		"exported": func(s ...string) string {
@@ -285,18 +316,26 @@ func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 			}
 			return r
 		},
+		"pluralize": func(s string) string {
+			return inflector.Pluralize(s)
+		},
 		"inc": func(i int) string {
 			return strconv.Itoa(i + 1)
 		},
 	})
 
-	tpl, _ = tpl.New("enum.tpl").Parse(string(bEnumTpl))
-	tpl, _ = tpl.New("table.tpl").Parse(string(bTableTpl))
-	tpl, _ = tpl.New("utils.tpl").Parse(string(bUtilsTpl))
+	tpl, _ = tpl.New("enum.tpl").Parse(string(tmpl.MustAsset("../tmpl/enum.tpl")))
+	tpl, _ = tpl.New("table.tpl").Parse(string(tmpl.MustAsset("../tmpl/table.tpl")))
+	tpl, _ = tpl.New("table_fn.tpl").Parse(string(tmpl.MustAsset("../tmpl/table_fn.tpl")))
+	tpl, _ = tpl.New("utils.tpl").Parse(string(tmpl.MustAsset("../tmpl/utils.tpl")))
+	tpl, _ = tpl.New("store.tpl").Parse(string(tmpl.MustAsset("../tmpl/store.tpl")))
+	tpl, _ = tpl.New("queries.tpl").Parse(string(tmpl.MustAsset("../tmpl/queries.tpl")))
+	tpl, _ = tpl.New("postgres.tpl").Parse(string(tmpl.MustAsset("../tmpl/postgres.tpl")))
+	tpl, _ = tpl.New("store_keys.tpl").Parse(string(tmpl.MustAsset("../tmpl/store_keys.tpl")))
 
 	// Write enums
-	for _, en := range ins.Enums {
-		filename := filepath.Join(outdir, "pgxgen_enum_"+strings.ToLower(en.Name)+".go")
+	for _, en := range pgdata.Enums {
+		filename := filepath.Join(modelDir, strings.ToLower(en.Name)+".pgxgen.go")
 		f, err := os.Create(filename)
 		if err != nil {
 			f.Close()
@@ -305,9 +344,11 @@ func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 		err = tpl.ExecuteTemplate(f, "enum.tpl",
 			struct {
 				PackageName string
+				ImportPath  string
 				Enum        *pgxgen.Enum
 			}{
-				PackageName: pkgName,
+				PackageName: modelPkgName,
+				ImportPath:  importPath,
 				Enum:        en,
 			})
 		if err != nil {
@@ -318,8 +359,9 @@ func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 	}
 
 	// Write tables
-	for _, en := range ins.Tables {
-		filename := filepath.Join(outdir, "pgxgen_table_"+strings.ToLower(en.Name)+".go")
+	for _, en := range pgdata.Tables {
+		// Model
+		filename := filepath.Join(modelDir, strings.ToLower(en.Name)+".pgxgen.go")
 		f, err := os.Create(filename)
 		if err != nil {
 			f.Close()
@@ -328,10 +370,134 @@ func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 		err = tpl.ExecuteTemplate(f, "table.tpl",
 			struct {
 				PackageName string
+				ImportPath  string
 				Table       *pgxgen.Table
 			}{
-				PackageName: pkgName,
+				PackageName: modelPkgName,
+				ImportPath:  importPath,
 				Table:       en,
+			})
+		if err != nil {
+			f.Close()
+			panic("error executing template: " + filename + ": " + err.Error())
+		}
+		f.Close()
+
+		filename = filepath.Join(postgresImplDir, strings.ToLower(en.Name)+".pgxgen.go")
+		f, err = os.Create(filename)
+		if err != nil {
+			f.Close()
+			panic("error creating file: " + filename + ": " + err.Error())
+		}
+		err = tpl.ExecuteTemplate(f, "table_fn.tpl",
+			struct {
+				PackageName      string
+				ImportPath       string
+				ModelPackageName string
+				Table            *pgxgen.Table
+			}{
+				ModelPackageName: modelPkgName,
+				ImportPath:       importPath,
+				PackageName:      "postgres",
+				Table:            en,
+			})
+		if err != nil {
+			f.Close()
+			panic("error executing template: " + filename + ": " + err.Error())
+		}
+		f.Close()
+	}
+
+	// Write queries
+	{
+		filename := filepath.Join(postgresImplDir, "queries.pgxgen.go")
+		f, err := os.Create(filename)
+		if err != nil {
+			f.Close()
+			panic("error creating file: " + filename + ": " + err.Error())
+		}
+		err = tpl.ExecuteTemplate(f, "queries.tpl",
+			struct {
+				PackageName      string
+				ImportPath       string
+				ModelPackageName string
+				Queries          []pgxgen.Query
+			}{
+				PackageName:      "postgres",
+				ModelPackageName: modelPkgName,
+				ImportPath:       importPath,
+				Queries:          queries,
+			})
+		if err != nil {
+			f.Close()
+			panic("error executing template: " + filename + ": " + err.Error())
+		}
+		f.Close()
+	}
+	{
+		filename := filepath.Join(postgresImplDir, "postgres.pgxgen.go")
+		f, err := os.Create(filename)
+		if err != nil {
+			f.Close()
+			panic("error creating file: " + filename + ": " + err.Error())
+		}
+		err = tpl.ExecuteTemplate(f, "postgres.tpl",
+			struct {
+				PackageName      string
+				ImportPath       string
+				ModelPackageName string
+				Queries          []pgxgen.Query
+			}{
+				PackageName:      "postgres",
+				ModelPackageName: modelPkgName,
+				ImportPath:       importPath,
+				Queries:          queries,
+			})
+		if err != nil {
+			f.Close()
+			panic("error executing template: " + filename + ": " + err.Error())
+		}
+		f.Close()
+	}
+
+	{
+		filename := filepath.Join(storedir, "store.pgxgen.go")
+		f, err := os.Create(filename)
+		if err != nil {
+			f.Close()
+			panic("error creating file: " + filename + ": " + err.Error())
+		}
+		err = tpl.ExecuteTemplate(f, "store.tpl",
+			struct {
+				PackageName string
+				ImportPath  string
+			}{
+				PackageName: "store",
+				ImportPath:  importPath,
+			})
+		if err != nil {
+			f.Close()
+			panic("error executing template: " + filename + ": " + err.Error())
+		}
+		f.Close()
+
+		filename = filepath.Join(storedir, "keys.pgxgen.go")
+		f, err = os.Create(filename)
+		if err != nil {
+			f.Close()
+			panic("error creating file: " + filename + ": " + err.Error())
+		}
+		err = tpl.ExecuteTemplate(f, "store_keys.tpl",
+			struct {
+				PackageName      string
+				ImportPath       string
+				ModelPackageName string
+				Queries          []pgxgen.Query
+			}{
+				PackageName:      "store",
+				ModelPackageName: modelPkgName,
+				ImportPath:       importPath,
+				Queries:          queries,
 			})
 		if err != nil {
 			f.Close()
@@ -341,26 +507,26 @@ func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 	}
 
 	// Write utils file which contains helpers
-	filename := filepath.Join(outdir, "pgxgen_utils.go")
-	f, err := os.Create(filename)
-	if err != nil {
-		f.Close()
-		panic("error creating file: " + filename + ": " + err.Error())
-	}
-	err = tpl.ExecuteTemplate(f, "utils.tpl",
-		struct {
-			PackageName string
-		}{
-			PackageName: pkgName,
-		})
-	if err != nil {
-		f.Close()
-		panic("error executing template: " + filename + ": " + err.Error())
-	}
-	f.Close()
+	//filename := filepath.Join(modelDir, "pgxgen_utils.go")
+	//f, err := os.Create(filename)
+	//if err != nil {
+	//	f.Close()
+	//	panic("error creating file: " + filename + ": " + err.Error())
+	//}
+	//err = tpl.ExecuteTemplate(f, "utils.tpl",
+	//	struct {
+	//		PackageName string
+	//	}{
+	//		PackageName: modelPkgName,
+	//	})
+	//if err != nil {
+	//	f.Close()
+	//	panic("error executing template: " + filename + ": " + err.Error())
+	//}
+	//f.Close()
 
 	// Format output
-	out, err := exec.Command("sh", "-c", "goimports -w "+filepath.Join(outdir, "*.go")).Output()
+	out, err := exec.Command("sh", "-c", "goimports -w "+filepath.Join(modelDir, "./..")).Output()
 	if err != nil {
 		panic("error formatting: " + err.Error() + "\n" + string(out))
 	}

@@ -13,57 +13,30 @@ import (
     uuid "github.com/satori/go.uuid"
 )
 
-const (
+// {{.Enum.ExportedName}} represents '{{.Enum.Name}}' enum.
+type {{.Enum.GoType}} pgtype.Text
+
+var (
 {{range .Enum.Values}}
-    {{exported $.Enum.Name .Value }} =  {{$.Enum.GoType}}("{{.Value}}") // const for {{$.Enum.Name}}'s {{.Value}}
+    {{exported $.Enum.Name .Value }} =  {{$.Enum.GoType}}(pgtype.Text{String: "{{.Value}}", Status: pgtype.Present}) // const for {{$.Enum.Name}}'s {{.Value}}
 {{- end}}
 )
 
-// {{.Enum.ExportedName}} represents '{{.Enum.Name}}' enum.
-type {{.Enum.GoType}} string
 
-{{range .Enum.Values}}
-// Is{{.ExportedName}} returns true when string value is '{{.}}'
-func ({{$.Enum.ShortName}} {{$.Enum.GoType}}) Is{{.ExportedName}}() bool {
-    return {{$.Enum.ShortName}} == {{$.Enum.GoType}}{{.ExportedName}}
-}
+{{range .Enum.Values -}}
+func ({{$.Enum.ShortName}} {{$.Enum.GoType}}) Is{{.ExportedName}}() bool { return {{$.Enum.ShortName}} == {{$.Enum.GoType}}{{.ExportedName}} }
 {{end}}
 
-// PGType returns a pgx compatible object for {{.Enum.GoType}}.
-func ({{.Enum.ShortName}} {{$.Enum.GoType}}) PGType() {{.Enum.PgxType}} {
-    return {{.Enum.PgxType}}{Status: pgtype.Present, String: string({{.Enum.ShortName}})}
-}
+func ({{.Enum.ShortName}} *{{.Enum.GoType}}) Set(src interface{}) error { return (*pgtype.Text)({{.Enum.ShortName}}).Set(src) }
+func ({{.Enum.ShortName}} *{{.Enum.GoType}}) Get() interface{} { return (*pgtype.Text)({{.Enum.ShortName}}).Get()}
+func ({{.Enum.ShortName}} *{{.Enum.GoType}}) AssignTo(dst interface{}) error { return (*pgtype.Text)({{.Enum.ShortName}}).AssignTo(dst) }
+func ({{.Enum.ShortName}} *{{.Enum.GoType}}) Scan(src interface{}) error { return (*pgtype.Text)({{.Enum.ShortName}}).Scan(src) }
+func ({{.Enum.ShortName}} *{{.Enum.GoType}}) Value() (driver.Value, error) { return (*pgtype.Text)({{.Enum.ShortName}}).Value() }
+func ({{.Enum.ShortName}} *{{.Enum.GoType}}) MarshalJSON() ([]byte, error)   { return (*pgtype.Text)({{.Enum.ShortName}}).MarshalJSON() }
+func ({{.Enum.ShortName}} *{{.Enum.GoType}}) UnmarshalJSON(b []byte) error   { return (*pgtype.Text)({{.Enum.ShortName}}).UnmarshalJSON(b) }
 
-// {{.Enum.PgxType}} is a data type that implements interface(s) for use with pgx.
-type {{.Enum.PgxType}} pgtype.Text
+func ({{.Enum.ShortName}} *{{.Enum.GoType}}) DecodeText(ci *pgtype.ConnInfo, src []byte) error { return (*pgtype.Text)({{.Enum.ShortName}}).DecodeText(ci, src) }
+func ({{.Enum.ShortName}} *{{.Enum.GoType}}) EncodeText(ci *pgtype.ConnInfo, buf []byte) ([]byte, error) { return (*pgtype.Text)({{.Enum.ShortName}}).EncodeText(ci, buf) }
 
-func ({{.Enum.ShortName}} *{{.Enum.PgxType}}) Set(src interface{}) error {
-	return (*pgtype.Text)({{.Enum.ShortName}}).Set(src)
-}
-
-func ({{.Enum.ShortName}} *{{.Enum.PgxType}}) Get() interface{} {
-	return (*pgtype.Text)({{.Enum.ShortName}}).Get()
-}
-
-// AssignTo assigns from src to dst.
-func ({{.Enum.ShortName}} *{{.Enum.PgxType}}) AssignTo(dst interface{}) error {
-	return (*pgtype.Text)({{.Enum.ShortName}}).AssignTo(dst)
-}
-
-func ({{.Enum.ShortName}} *{{.Enum.PgxType}}) DecodeText(ci *pgtype.ConnInfo, src []byte) error {
-	return (*pgtype.Text)({{.Enum.ShortName}}).DecodeText(ci, src)
-}
-
-func ({{.Enum.ShortName}} *{{.Enum.PgxType}}) EncodeText(ci *pgtype.ConnInfo, buf []byte) ([]byte, error) {
-	return (*pgtype.Text)({{.Enum.ShortName}}).EncodeText(ci, buf)
-}
-
-// Scan implements the database/sql Scanner interface.
-func ({{.Enum.ShortName}} *{{.Enum.PgxType}}) Scan(src interface{}) error {
-	return (*pgtype.Text)({{.Enum.ShortName}}).Scan(src)
-}
-
-// Value implements the database/sql/driver Valuer interface.
-func ({{.Enum.ShortName}} *{{.Enum.PgxType}}) Value() (driver.Value, error) {
-	return (*pgtype.Text)({{.Enum.ShortName}}).Value()
-}
+func ({{.Enum.ShortName}} *{{.Enum.GoType}}) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error { return (*pgtype.Text)({{.Enum.ShortName}}).DecodeBinary(ci, src) }
+func ({{.Enum.ShortName}} *{{.Enum.GoType}}) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) ([]byte, error) { return (*pgtype.Text)({{.Enum.ShortName}}).EncodeBinary(ci, buf) }

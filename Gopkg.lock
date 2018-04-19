@@ -8,6 +8,12 @@
   version = "v1.4.7"
 
 [[projects]]
+  name = "github.com/graph-gophers/dataloader"
+  packages = ["."]
+  revision = "78139374585c29dcb97b8f33089ed11959e4be59"
+  version = "v5"
+
+[[projects]]
   branch = "master"
   name = "github.com/hashicorp/hcl"
   packages = [
@@ -62,6 +68,15 @@
   revision = "00c29f56e2386353d58c599509e8dc3801b0d716"
 
 [[projects]]
+  name = "github.com/opentracing/opentracing-go"
+  packages = [
+    ".",
+    "log"
+  ]
+  revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
+  version = "v1.0.2"
+
+[[projects]]
   name = "github.com/pelletier/go-toml"
   packages = ["."]
   revision = "acdc4509485b587f5e675510c4f2c63e90ff68a8"
@@ -84,6 +99,22 @@
   name = "github.com/reiver/go-whitespace"
   packages = ["."]
   revision = "5c4ea59c072e7db2684f8ea04b6e95a58e0f690d"
+
+[[projects]]
+  name = "github.com/rs/zerolog"
+  packages = [
+    ".",
+    "internal/cbor",
+    "internal/json",
+    "log"
+  ]
+  revision = "05eafee0eb17d0150591a8f30f0fa592cc9b7471"
+  version = "v1.6.0"
+
+[[projects]]
+  name = "github.com/satori/go.uuid"
+  packages = ["."]
+  revision = "36e9d2ebbde5e3f13ab2e25625fd453271d6522e"
 
 [[projects]]
   name = "github.com/spf13/afero"
@@ -125,10 +156,22 @@
   version = "v1.0.2"
 
 [[projects]]
+  name = "github.com/tangzero/inflector"
+  packages = ["."]
+  revision = "4e16ec0c1216269879557ee53e25c3722e81c2ee"
+  version = "v1.0.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/tmthrgd/go-bindata"
   packages = ["restore"]
   revision = "40f4993ede74f673cfe96bed75ef8513a389a00a"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/net"
+  packages = ["context"]
+  revision = "8d16fa6dc9a85c1cd3ed24ad08ff21cf94f10888"
 
 [[projects]]
   branch = "master"
@@ -158,6 +201,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ccf7340132f9c469dc78ef353d35fc80337b4f6d08039a0c6478e667674a564f"
+  inputs-digest = "bfb7c1c4caaa34834c78d0bd997887a451f4fa6b23d7dc0c66aac73e2261d3c6"
   solver-name = "gps-cdcl"
   solver-version = 1

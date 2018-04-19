@@ -81,6 +81,22 @@ var pgToGoTemplate = map[string]func(v, p string) string{
 	"jsonb":       func(v, p string) string { return fmt.Sprintf("%s.%s.Bytes", v, p) },
 }
 
+var pgStringTemplate = map[string]func(v...interface{}) string{
+	"text":        func(v ...interface{}) string { return fmt.Sprintf("pgconv.TextStr(%s)", v...) },
+	"varchar":     func(v ...interface{}) string { return fmt.Sprintf("pgconv.VarcharStr(%s)", v...) },
+	"bytea":       func(v ...interface{}) string { return fmt.Sprintf("pgconv.ByteaStr(%s)", v...) },
+	"int2":        func(v ...interface{}) string { return fmt.Sprintf("pgconv.Int2Str(%s)", v...) },
+	"int4":        func(v ...interface{}) string { return fmt.Sprintf("pgconv.Int4Str(%s)", v...) },
+	"int8":        func(v ...interface{}) string { return fmt.Sprintf("pgconv.Int8Str(%s)", v...) },
+	"bool":        func(v ...interface{}) string { return fmt.Sprintf("pgconv.BoolStr(%s)", v...) },
+	"uuid":        func(v ...interface{}) string { return fmt.Sprintf("pgconv.UUIDStr(%s)", v...) },
+	"timestamp":   func(v ...interface{}) string { return fmt.Sprintf("pgconv.TimestampStr(%s)", v...) },
+	"timestamptz": func(v ...interface{}) string { return fmt.Sprintf("pgconv.TimestamptzStr(%s)", v...) },
+	"float4":      func(v ...interface{}) string { return fmt.Sprintf("pgconv.Float4Str(%s)", v...) },
+	"float8":      func(v ...interface{}) string { return fmt.Sprintf("pgconv.Float8Str(%s)", v...) },
+}
+
+
 var goToPgTemplate = map[string]func(v string) string{
 	"text":        func(v string) string { return fmt.Sprintf("pgtype.Text{String: %s, Status: pgtype.Present}", v) },
 	"varchar":     func(v string) string { return fmt.Sprintf("pgtype.Text{String: %s, Status: pgtype.Present}", v) },
@@ -208,21 +224,47 @@ func (c *Column) GoType() string {
 	return pgToGoTypeMap[c.DataType]
 }
 
+func (c *Column) QualifiedPgxType(s string) string {
+	for _, t := range customEnumType {
+		if c.DataType == t {
+			return s + "." + pgToPgxTypeMap[c.DataType]
+		}
+	}
+	return pgToPgxTypeMap[c.DataType]
+}
+
+func (c *Column) QualifiedGoType(s string) string {
+	for _, t := range customEnumType {
+		if c.DataType == t {
+			return s + "." + pgToGoTypeMap[c.DataType]
+		}
+	}
+	return pgToGoTypeMap[c.DataType]
+}
+
 func (c *Column) GoVar() string {
 	return replaceAcronyms(stringcase.ToCamelCase(c.Name))
 }
 
 func (c *Column) GoVarTemplate() string {
-	for _, t := range customEnumType {
-		if c.DataType == t {
-			return "string(" + replaceAcronyms(stringcase.ToCamelCase(c.Name)) + ")"
-		}
-	}
+	//for _, t := range customEnumType {
+	//	if c.DataType == t {
+	//		return "" + replaceAcronyms(stringcase.ToCamelCase(c.Name)) + ".String"
+	//	}
+	//}
 	return replaceAcronyms(stringcase.ToCamelCase(c.Name))
 }
 
 func (c *Column) GoValueTemplate(v string) string {
 	return pgToGoTemplate[c.DataType](v, c.ExportedName())
+}
+
+func (c *Column) PgStringTemplate(v...interface{}) string {
+	f, ok := pgStringTemplate[c.DataType]
+	if !ok {
+		return "PG_STRING_TEMPLATE"
+	}
+	return f(v...)
 }
 
 func (c *Column) PgValueTemplate(v string) string {
@@ -242,11 +284,13 @@ func Inspect(conn *pgx.Conn, schema string) (*PGData, error) {
 	}
 	data.Enums = enums
 	for name, en := range enums {
-		pgToPgxTypeMap[name] = "PGType" + en.ExportedName()
+		pgToPgxTypeMap[name] = en.ExportedName()
 		pgToGoTypeMap[name] = en.ExportedName()
 		pgToGoTemplate[name] = func(t string) func(v, p string) string {
 			return func(v, p string) string { return fmt.Sprintf("%s(%s.%s.String)", t, v, p) }
 		}(en.GoType())
+		pgStringTemplate[name] = func(v...interface{}) string { return fmt.Sprintf("pgconv.TextStr(pgtype.Text(%s))", v...) }
+
 		goToPgTemplate[name] = func(v string) string { return fmt.Sprintf("%s.PGType()", v) }
 		customEnumType = append(customEnumType, name)
 	}
@@ -434,7 +478,7 @@ func getTablePrimaryIndex(conn *pgx.Conn, schema string, table string) ([]string
 
 //
 // func getTableIndexes(conn *pgx.Conn) ([]*Index, error) {
-// 	rows, err := conn.Query(queryGetTableIndexes)
+// 	rows, err := conn.QueryDefinition(queryGetTableIndexes)
 // 	defer rows.Close()
 // 	if err != nil {
 // 		return nil, fmt.Errorf("unable to get tables: %v", err)
