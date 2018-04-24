@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -263,11 +264,18 @@ func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 		panic("error creating models directory: " + modelDir + ": " + err.Error())
 	}
 
-	storedir := filepath.Join(outdir, "store")
-	postgresImplDir := filepath.Join(storedir, "postgres")
+	datastoredir := filepath.Join(outdir, "datastore")
+	postgresImplDir := filepath.Join(datastoredir, "postgres")
 	err = os.MkdirAll(postgresImplDir, os.ModePerm)
 	if err != nil {
 		panic("error creating output fn directory: " + postgresImplDir + ": " + err.Error())
+	}
+
+	typesdir := filepath.Join(outdir, "types")
+	nullzerodir := filepath.Join(outdir, "types", "nullzero")
+	err = os.MkdirAll(nullzerodir, os.ModePerm)
+	if err != nil {
+		panic("error creating types/nullzero directory: " + nullzerodir + ": " + err.Error())
 	}
 
 	srcPath := []rune(filepath.Join(os.Getenv("GOPATH"), "src"))
@@ -324,14 +332,18 @@ func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 		},
 	})
 
-	tpl, _ = tpl.New("enum.tpl").Parse(string(tmpl.MustAsset("../tmpl/enum.tpl")))
-	tpl, _ = tpl.New("table.tpl").Parse(string(tmpl.MustAsset("../tmpl/table.tpl")))
-	tpl, _ = tpl.New("table_fn.tpl").Parse(string(tmpl.MustAsset("../tmpl/table_fn.tpl")))
-	tpl, _ = tpl.New("utils.tpl").Parse(string(tmpl.MustAsset("../tmpl/utils.tpl")))
-	tpl, _ = tpl.New("store.tpl").Parse(string(tmpl.MustAsset("../tmpl/store.tpl")))
-	tpl, _ = tpl.New("queries.tpl").Parse(string(tmpl.MustAsset("../tmpl/queries.tpl")))
-	tpl, _ = tpl.New("postgres.tpl").Parse(string(tmpl.MustAsset("../tmpl/postgres.tpl")))
-	tpl, _ = tpl.New("store_keys.tpl").Parse(string(tmpl.MustAsset("../tmpl/store_keys.tpl")))
+	for _, name := range tmpl.AssetNames() {
+		log.Print(filepath.Base(name))
+		tpl, _ = tpl.New(filepath.Base(name)).Parse(string(tmpl.MustAsset(name)))
+	}
+	//tpl, _ = tpl.New("enum.tpl").Parse(string(tmpl.MustAsset("../tmpl/enum.tpl")))
+	//tpl, _ = tpl.New("table.tpl").Parse(string(tmpl.MustAsset("../tmpl/table.tpl")))
+	//tpl, _ = tpl.New("table_fn.tpl").Parse(string(tmpl.MustAsset("../tmpl/table_fn.tpl")))
+	//tpl, _ = tpl.New("utils.tpl").Parse(string(tmpl.MustAsset("../tmpl/utils.tpl")))
+	//tpl, _ = tpl.New("datastore.tpl").Parse(string(tmpl.MustAsset("../tmpl/datastore.tpl")))
+	//tpl, _ = tpl.New("queries.tpl").Parse(string(tmpl.MustAsset("../tmpl/queries.tpl")))
+	//tpl, _ = tpl.New("postgres.tpl").Parse(string(tmpl.MustAsset("../tmpl/postgres.tpl")))
+	//tpl, _ = tpl.New("datastore_keys.tpl").Parse(string(tmpl.MustAsset("../tmpl/datastore_keys.tpl")))
 
 	// Write enums
 	for _, en := range pgdata.Enums {
@@ -461,18 +473,18 @@ func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 	}
 
 	{
-		filename := filepath.Join(storedir, "store.pgxgen.go")
+		filename := filepath.Join(datastoredir, "datastore.pgxgen.go")
 		f, err := os.Create(filename)
 		if err != nil {
 			f.Close()
 			panic("error creating file: " + filename + ": " + err.Error())
 		}
-		err = tpl.ExecuteTemplate(f, "store.tpl",
+		err = tpl.ExecuteTemplate(f, "datastore.tpl",
 			struct {
 				PackageName string
 				ImportPath  string
 			}{
-				PackageName: "store",
+				PackageName: "datastore",
 				ImportPath:  importPath,
 			})
 		if err != nil {
@@ -481,24 +493,55 @@ func modelRunFn(gendir string, cmd *cobra.Command, args []string) {
 		}
 		f.Close()
 
-		filename = filepath.Join(storedir, "keys.pgxgen.go")
+		filename = filepath.Join(datastoredir, "keys.pgxgen.go")
 		f, err = os.Create(filename)
 		if err != nil {
 			f.Close()
 			panic("error creating file: " + filename + ": " + err.Error())
 		}
-		err = tpl.ExecuteTemplate(f, "store_keys.tpl",
+		err = tpl.ExecuteTemplate(f, "datastore_keys.tpl",
 			struct {
 				PackageName      string
 				ImportPath       string
 				ModelPackageName string
 				Queries          []pgxgen.Query
 			}{
-				PackageName:      "store",
+				PackageName:      "datastore",
 				ModelPackageName: modelPkgName,
 				ImportPath:       importPath,
 				Queries:          queries,
 			})
+		if err != nil {
+			f.Close()
+			panic("error executing template: " + filename + ": " + err.Error())
+		}
+		f.Close()
+	}
+
+	typeFiles := []string{
+		"nullzero/null",
+		"new",
+		"to_string",
+		"types",
+	}
+	for _, fn := range typeFiles {
+		filename := filepath.Join(typesdir, fn+".pgxgen.go")
+		f, err := os.Create(filename)
+		if err != nil {
+			f.Close()
+			panic("error creating file: " + filename + ": " + err.Error())
+		}
+		err = tpl.ExecuteTemplate(f, filepath.Base(fn)+".tpl", struct {
+			PackageName      string
+			ModelPackageName string
+			ImportPath       string
+			Data             *pgxgen.PGData
+		}{
+			ModelPackageName: modelPkgName,
+			ImportPath:       importPath,
+			PackageName:      "types",
+			Data:             pgdata,
+		})
 		if err != nil {
 			f.Close()
 			panic("error executing template: " + filename + ": " + err.Error())

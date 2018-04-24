@@ -8,13 +8,14 @@ import (
     pgx "github.com/jackc/pgx"
     pgtype "github.com/jackc/pgx/pgtype"
     uuid "github.com/satori/go.uuid"
-    store "{{.ImportPath}}/store"
+    datastore "{{.ImportPath}}/datastore"
     {{.ModelPackageName}} "{{.ImportPath}}/{{.ModelPackageName}}"
+    "github.com/graph-gophers/dataloader"
 )
 
 {{range .Queries}}
-func (st *PGStore) {{.Name}}({{range $k, $fd := .Filter}}{{if $k}}, {{end}}{{.Column.GoVar}} {{if eq .Op "in"}}[]{{end}}{{.Column.QualifiedPgxType  $.ModelPackageName}}{{end}}) (*{{$.ModelPackageName}}.{{.Table.ExportedName}}, error) {
-     d, err := st.generatedLoaders.{{.Name}}.Load(context.Background(), store.Key{{.Name}}{ {{range $k, $fd := .Filter}}{{if $k}}, {{end}}{{.Column.ExportedName}}: {{.Column.GoVar}}{{end}} })()
+func (st *PGDatastore) {{.Name}}({{range $k, $fd := .Filter}}{{if $k}}, {{end}}{{.Column.GoVar}} {{if eq .Op "in"}}[]{{end}}{{.Column.QualifiedPgxType  $.ModelPackageName}}{{end}}) (*{{$.ModelPackageName}}.{{.Table.ExportedName}}, error) {
+     d, err := st.generatedLoaders.{{.Name}}.Load(context.Background(), datastore.Key{{.Name}}{ {{range $k, $fd := .Filter}}{{if $k}}, {{end}}{{.Column.ExportedName}}: {{.Column.GoVar}}{{end}} })()
      if err != nil {
         return nil, err
      }
@@ -22,7 +23,7 @@ func (st *PGStore) {{.Name}}({{range $k, $fd := .Filter}}{{if $k}}, {{end}}{{.Co
 }
 
 {{if .ReturnOne}}
-func batchFunc{{.Name}}(conn store.PostgresConnection) dataloader.BatchFunc {
+func batchFunc{{.Name}}(conn datastore.PostgresConnection) dataloader.BatchFunc {
     return func(_ context.Context, keys dataloader.Keys) []*dataloader.Result {
             var results []*dataloader.Result
 
@@ -34,7 +35,7 @@ func batchFunc{{.Name}}(conn store.PostgresConnection) dataloader.BatchFunc {
             for _, k := range keys {
                 rmap[k.String()] = nil
 
-                key, ok := k.(store.Key{{.Name}})
+                key, ok := k.(datastore.Key{{.Name}})
                 if !ok {
                     continue
                 }
@@ -59,7 +60,7 @@ func batchFunc{{.Name}}(conn store.PostgresConnection) dataloader.BatchFunc {
                 // Log error
             }
             for _, r := range rr {
-                key := store.MkKeyStr{{.Name}}({{range $k, $fd := .Filter}}{{if $k}}, {{end}}r.{{.Column.ExportedName}}{{end}})
+                key := datastore.MkKeyStr{{.Name}}({{range $k, $fd := .Filter}}{{if $k}}, {{end}}r.{{.Column.ExportedName}}{{end}})
                 rmap[key] = r
             }
             for _, key := range keys {
@@ -68,7 +69,7 @@ func batchFunc{{.Name}}(conn store.PostgresConnection) dataloader.BatchFunc {
                 if !ok {
                     err = pgx.ErrNoRows
                 }
-                results = append(results, &dataloader.Result{Data: d, Error: ToStoreErr("{{.Name}}BatchFunc", err)})
+                results = append(results, &dataloader.Result{Data: d, Error: ToDatastoreErr("{{.Name}}BatchFunc", err)})
             }
             return results
         }
@@ -76,7 +77,7 @@ func batchFunc{{.Name}}(conn store.PostgresConnection) dataloader.BatchFunc {
 {{end}}
 
 {{if .ReturnMany}}
-func batchFunc{{.Name}}(conn store.PostgresConnection) dataloader.BatchFunc {
+func batchFunc{{.Name}}(conn datastore.PostgresConnection) dataloader.BatchFunc {
     return func(_ context.Context, keys dataloader.Keys) []*dataloader.Result {
             var results []*dataloader.Result
 
@@ -89,7 +90,7 @@ func batchFunc{{.Name}}(conn store.PostgresConnection) dataloader.BatchFunc {
             for _, k := range keys {
                 rmap[k.String()] = nil
 
-                key, ok := k.(store.Key{{.Name}})
+                key, ok := k.(datastore.Key{{.Name}})
                 if !ok {
                     continue
                 }
@@ -155,7 +156,7 @@ func batchFunc{{.Name}}(conn store.PostgresConnection) dataloader.BatchFunc {
                 if !ok {
                     err = pgx.ErrNoRows
                 }
-                results = append(results, &dataloader.Result{Data: d, Error: ToStoreErr("batchFunc{{.Name}}", err)})
+                results = append(results, &dataloader.Result{Data: d, Error: ToDatastoreErr("batchFunc{{.Name}}", err)})
             }
             return results
         }

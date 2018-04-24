@@ -42,9 +42,9 @@ type Error struct {
 
 func (e *Error) Error() string {
     if e.Message == "" {
-        return fmt.Sprintf("store: %s.%s(): %s", e.Impl, e.Function, e.Err)
+        return fmt.Sprintf("datastore: %s.%s(): %s", e.Impl, e.Function, e.Err)
     }
-	return fmt.Sprintf("store: %s.%s(): %s: %s", e.Impl, e.Function, e.Message, e.Err)
+	return fmt.Sprintf("datastore: %s.%s(): %s: %s", e.Impl, e.Function, e.Message, e.Err)
 }
 
 func IsErrNotFound(err error) bool {

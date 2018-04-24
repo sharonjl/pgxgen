@@ -8,7 +8,7 @@ import (
     pgx "github.com/jackc/pgx"
     pgtype "github.com/jackc/pgx/pgtype"
     uuid "github.com/satori/go.uuid"
-    store "{{.ImportPath}}/store"
+    datastore "{{.ImportPath}}/datastore"
     {{.ModelPackageName}} "{{.ImportPath}}/{{.ModelPackageName}}"
 )
 
@@ -68,7 +68,7 @@ func Scan{{pluralize .Table.ExportedName}}(rows *pgx.Rows) ([]*{{.ModelPackageNa
 }
 
 // Create{{.Table.ExportedName}} create a single row in '{{.Table.Name}}' and return it.
-func Create{{.Table.ExportedName}}(conn store.PostgresConnection, m *{{.ModelPackageName}}.{{.Table.ExportedName}}) (*{{.ModelPackageName}}.{{.Table.ExportedName}}, error) {
+func Create{{.Table.ExportedName}}(conn datastore.PostgresConnection, m *{{.ModelPackageName}}.{{.Table.ExportedName}}) (*{{.ModelPackageName}}.{{.Table.ExportedName}}, error) {
 	var f []string
 	var v []string
 	var c int
@@ -87,11 +87,11 @@ func Create{{.Table.ExportedName}}(conn store.PostgresConnection, m *{{.ModelPac
 
 	row := conn.QueryRow(q, a...)
 	r, err := Scan{{.Table.ExportedName}}(row)
-	return r, ToStoreErr("Create{{.Table.ExportedName}}", err)
+	return r, ToDatastoreErr("Create{{.Table.ExportedName}}", err)
 }
 
 // Update{{.Table.ExportedName}} updates a row in '{{.Table.Name}}.'
-func Update{{.Table.ExportedName}}(conn store.PostgresConnection, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVar}} {{.QualifiedGoType $.ModelPackageName}}{{end}}, m *{{.ModelPackageName}}.{{.Table.ExportedName}}) (*{{.ModelPackageName}}.{{.Table.ExportedName}}, error) {
+func Update{{.Table.ExportedName}}(conn datastore.PostgresConnection, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVar}} {{.QualifiedGoType $.ModelPackageName}}{{end}}, m *{{.ModelPackageName}}.{{.Table.ExportedName}}) (*{{.ModelPackageName}}.{{.Table.ExportedName}}, error) {
 	var f []string
 	var pk []string
 	var c int
@@ -119,12 +119,12 @@ func Update{{.Table.ExportedName}}(conn store.PostgresConnection, {{range $k, $p
 	q := "UPDATE {{.Table.Schema}}.{{.Table.Name}} SET " + strings.Join(f, ", ") + " WHERE " + strings.Join(pk, " AND ") + " RETURNING " + {{.Table.ExportedName}}FieldsStr + ";"
 	row := conn.QueryRow(q, a...)
 	r, err := Scan{{.Table.ExportedName}}(row)
-	return r, ToStoreErr("Update{{.Table.ExportedName}}", err)
+	return r, ToDatastoreErr("Update{{.Table.ExportedName}}", err)
 }
 
 // Delete{{.Table.ExportedName}} returns a row from '{{.Table.Name}}.' identified by primary key.
-func Delete{{.Table.ExportedName}}(conn store.PostgresConnection, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVar}} {{.QualifiedGoType $.ModelPackageName}}{{end}}) error {
+func Delete{{.Table.ExportedName}}(conn datastore.PostgresConnection, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVar}} {{.QualifiedGoType $.ModelPackageName}}{{end}}) error {
 	q := "DELETE FROM {{.Table.Schema}}.{{.Table.Name}} WHERE {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}} AND {{end}}{{.Name}} = ${{inc $k}}{{end}};"
 	_, err := conn.Exec(q, {{range $k, $pk := .Table.PrimaryKeys}}{{if $k}}, {{end}}{{.GoVarTemplate}}{{end}})
-    return ToStoreErr("Delete{{.Table.ExportedName}}", err)
+    return ToDatastoreErr("Delete{{.Table.ExportedName}}", err)
 }

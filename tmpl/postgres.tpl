@@ -4,20 +4,20 @@ package {{.PackageName}}
 import (
 	"github.com/graph-gophers/dataloader"
     "github.com/jackc/pgx"
-    store "{{.ImportPath}}/store"
+    datastore "{{.ImportPath}}/datastore"
 )
 
-func ToStoreErr(fn string, err error) error {
+func ToDatastoreErr(fn string, err error) error {
 	if err == nil {
 		return nil
 	}
     if err == pgx.ErrNoRows {
-        return &store.Error{Err: err, Code: store.ErrCodeNotFound, Impl: "{{.PackageName}}", Function: fn}
+        return &datastore.Error{Err: err, Code: datastore.ErrCodeNotFound, Impl: "{{.PackageName}}", Function: fn}
     }
     if pge, ok := err.(pgx.PgError); ok && pge.Code == "23505" {
-        return &store.Error{Err: err, Code: store.ErrCodeDuplicate, Impl: "{{.PackageName}}", Function: fn}
+        return &datastore.Error{Err: err, Code: datastore.ErrCodeDuplicate, Impl: "{{.PackageName}}", Function: fn}
     }
-    return &store.Error{Err: err, Code: store.ErrCodeUnknown, Impl: "{{.PackageName}}", Function: fn}
+    return &datastore.Error{Err: err, Code: datastore.ErrCodeUnknown, Impl: "{{.PackageName}}", Function: fn}
 }
 
 type generatedLoaders struct {
@@ -26,16 +26,16 @@ type generatedLoaders struct {
 {{end -}}
 }
 
-type PGStore struct {
+type PGDatastore struct {
 	generatedLoaders
-	conn store.PostgresConnection
+	conn datastore.PostgresConnection
 }
 
-func New(conn store.PostgresConnection) *PGStore {
+func New(conn datastore.PostgresConnection) *PGDatastore {
     ld := generatedLoaders{
     {{range .Queries -}}
         {{.Name}}: dataloader.NewBatchedLoader(batchFunc{{.Name}}(conn)),
     {{end -}}
     }
-    return &PGStore{generatedLoaders: ld, conn: conn}
+    return &PGDatastore{generatedLoaders: ld, conn: conn}
 }

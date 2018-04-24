@@ -4,12 +4,14 @@ package {{.PackageName}}
 import (
 	"strconv"
 	"strings"
+    "crypto/sha1"
+    "encoding/base64"
 
+    "../types"
     pgx "github.com/jackc/pgx"
     pgtype "github.com/jackc/pgx/pgtype"
-	"github.com/sharonjl/pgxgen/pgconv"
     uuid "github.com/satori/go.uuid"
-    store "{{.ImportPath}}/store"
+    datastore "{{.ImportPath}}/datastore"
     {{.ModelPackageName}} "{{.ImportPath}}/{{.ModelPackageName}}"
 )
 
@@ -28,7 +30,7 @@ func (k Key{{.Name}}) Raw() interface{} { return k }
 func MkKeyStr{{.Name}}({{range $k, $fd := .Filter}}{{if $k}}, {{end}}{{.Column.GoVar}} {{if eq .Op "in"}}[]{{end}}{{.Column.QualifiedPgxType  $.ModelPackageName}}{{end}}) string {
     k := "keyFor{{.Name}}"
     {{range $k, $fd := .Filter -}}
-        k = k + ":" + {{.Column.PgStringTemplate .Column.GoVar}}
+        k = k + ":" + {{.Column.PgStringTemplate "types" .Column.GoVar}}
     {{end -}}
     b := sha1.Sum([]byte(k))
 	return  base64.URLEncoding.EncodeToString(b[:])
@@ -41,11 +43,11 @@ func MkKeyStr{{.Name}}({{range $k, $fd := .Filter}}{{if $k}}, {{end}}{{.Column.G
     {{range $k, $fd := .Filter -}}
         {{if eq .Op "in" -}}
             for _, m := range {{.Column.GoVar}} {
-                k = k + ":" + {{.Column.PgStringTemplate "m"}}
+                k = k + ":" + {{.Column.PgStringTemplate "types" "m"}}
             }
         {{end -}}
         {{if ne .Op "in" -}}
-            k = k + {{.Column.PgStringTemplate .Column.GoVar}}
+            k = k + {{.Column.PgStringTemplate "types" .Column.GoVar}}
         {{end -}}
     {{end -}}
     b := sha1.Sum([]byte(k))

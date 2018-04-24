@@ -82,18 +82,18 @@ var pgToGoTemplate = map[string]func(v, p string) string{
 }
 
 var pgStringTemplate = map[string]func(v...interface{}) string{
-	"text":        func(v ...interface{}) string { return fmt.Sprintf("pgconv.TextStr(%s)", v...) },
-	"varchar":     func(v ...interface{}) string { return fmt.Sprintf("pgconv.VarcharStr(%s)", v...) },
-	"bytea":       func(v ...interface{}) string { return fmt.Sprintf("pgconv.ByteaStr(%s)", v...) },
-	"int2":        func(v ...interface{}) string { return fmt.Sprintf("pgconv.Int2Str(%s)", v...) },
-	"int4":        func(v ...interface{}) string { return fmt.Sprintf("pgconv.Int4Str(%s)", v...) },
-	"int8":        func(v ...interface{}) string { return fmt.Sprintf("pgconv.Int8Str(%s)", v...) },
-	"bool":        func(v ...interface{}) string { return fmt.Sprintf("pgconv.BoolStr(%s)", v...) },
-	"uuid":        func(v ...interface{}) string { return fmt.Sprintf("pgconv.UUIDStr(%s)", v...) },
-	"timestamp":   func(v ...interface{}) string { return fmt.Sprintf("pgconv.TimestampStr(%s)", v...) },
-	"timestamptz": func(v ...interface{}) string { return fmt.Sprintf("pgconv.TimestamptzStr(%s)", v...) },
-	"float4":      func(v ...interface{}) string { return fmt.Sprintf("pgconv.Float4Str(%s)", v...) },
-	"float8":      func(v ...interface{}) string { return fmt.Sprintf("pgconv.Float8Str(%s)", v...) },
+	"text":        func(v ...interface{}) string { return fmt.Sprintf("%s.TextToString(%s)", v...) },
+	"varchar":     func(v ...interface{}) string { return fmt.Sprintf("%s.VarcharToString(%s)", v...) },
+	"bytea":       func(v ...interface{}) string { return fmt.Sprintf("%s.ByteaToString(%s)", v...) },
+	"int2":        func(v ...interface{}) string { return fmt.Sprintf("%s.Int2ToString(%s)", v...) },
+	"int4":        func(v ...interface{}) string { return fmt.Sprintf("%s.Int4ToString(%s)", v...) },
+	"int8":        func(v ...interface{}) string { return fmt.Sprintf("%s.Int8ToString(%s)", v...) },
+	"bool":        func(v ...interface{}) string { return fmt.Sprintf("%s.BoolToString(%s)", v...) },
+	"uuid":        func(v ...interface{}) string { return fmt.Sprintf("%s.UUIDToString(%s)", v...) },
+	"timestamp":   func(v ...interface{}) string { return fmt.Sprintf("%s.TimestampToString(%s)", v...) },
+	"timestamptz": func(v ...interface{}) string { return fmt.Sprintf("%s.TimestamptzToString(%s)", v...) },
+	"float4":      func(v ...interface{}) string { return fmt.Sprintf("%s.Float4ToString(%s)", v...) },
+	"float8":      func(v ...interface{}) string { return fmt.Sprintf("%s.Float8ToString(%s)", v...) },
 }
 
 
@@ -289,8 +289,9 @@ func Inspect(conn *pgx.Conn, schema string) (*PGData, error) {
 		pgToGoTemplate[name] = func(t string) func(v, p string) string {
 			return func(v, p string) string { return fmt.Sprintf("%s(%s.%s.String)", t, v, p) }
 		}(en.GoType())
-		pgStringTemplate[name] = func(v...interface{}) string { return fmt.Sprintf("pgconv.TextStr(pgtype.Text(%s))", v...) }
-
+		pgStringTemplate[name] = func(t string) func(v ...interface{}) string {
+			return func(v ...interface{}) string { return fmt.Sprintf("%s." + t + "ToString(%s)", v...) }
+		}( en.ExportedName())
 		goToPgTemplate[name] = func(v string) string { return fmt.Sprintf("%s.PGType()", v) }
 		customEnumType = append(customEnumType, name)
 	}

@@ -14,7 +14,7 @@
 
 package main
 
-//go:generate go-bindata -ignore=\\.go -o ../tmpl/tmpl.bin.go ../tmpl
+//go:generate go-bindata -ignore=\\.go -o ../tmpl/tmpl.bin.go ../tmpl/./...
 
 import "github.com/sharonjl/pgxgen/pgxgen/cmd"
 
